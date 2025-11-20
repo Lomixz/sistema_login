@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+
+{% block title %}Importar Asignaciones - Administración{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 offset-md-2">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">
+                    <i class="fas fa-file-upload me-2"></i>
+                    Importar Asignaciones de Materias desde CSV
+                </h4>
+            </div>
+            <div class="card-body">
+                <!-- Instrucciones -->
+                <div class="alert alert-info">
+                    <h5 class="alert-heading">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Instrucciones para importar asignaciones
+                    </h5>
+                    <hr>
+                    <p class="mb-2"><strong>Formato del archivo CSV:</strong></p>
+                    <ul class="mb-2">
+                        <li><strong>profesor_email</strong>: Email del profesor (obligatorio)</li>
+                        <li><strong>materia_codigo</strong>: Código de la materia (obligatorio)</li>
+                    </ul>
+                    <p class="mb-2"><strong>Notas importantes:</strong></p>
+                    <ul class="mb-0">
+                        <li>El archivo debe estar en formato CSV (valores separados por comas)</li>
+                        <li>La primera fila debe contener los nombres de las columnas</li>
+                        <li>Un profesor puede tener múltiples materias (una línea por asignación)</li>
+                        <li>Solo se procesarán profesores y materias activas</li>
+                        <li>Si una asignación ya existe, se omitirá sin error</li>
+                    </ul>
+                </div>
+
+                <!-- Botones de descarga -->
+                <div class="text-center mb-4">
+                    <a href="{{ url_for('descargar_plantilla_asignaciones') }}" class="btn btn-outline-primary me-2">
+                        <i class="fas fa-download me-2"></i>
+                        Descargar Plantilla de Ejemplo
+                    </a>
+                    <a href="{{ url_for('exportar_asignaciones_actuales') }}" class="btn btn-outline-success">
+                        <i class="fas fa-file-export me-2"></i>
+                        Exportar Asignaciones Actuales
+                    </a>
+                </div>
+
+                <!-- Formulario de importación -->
+                <form method="POST" enctype="multipart/form-data">
+                    {{ form.hidden_tag() }}
+                    
+                    <div class="mb-3">
+                        {{ form.archivo.label(class="form-label") }}
+                        {{ form.archivo(class="form-control", accept=".csv") }}
+                        {% if form.archivo.errors %}
+                            <div class="invalid-feedback d-block">
+                                {% for error in form.archivo.errors %}
+                                    <p class="mb-0">{{ error }}</p>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        <small class="form-text text-muted">
+                            Selecciona un archivo CSV con las asignaciones a importar
+                        </small>
+                    </div>
+
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('asignacion_masiva_materias') }}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left me-1"></i>
+                            Volver
+                        </a>
+                        {{ form.submit(class="btn btn-primary") }}
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Ejemplo de formato CSV -->
+        <div class="card mt-4">
+            <div class="card-header bg-light">
+                <h5 class="mb-0">
+                    <i class="fas fa-file-csv me-2"></i>
+                    Ejemplo de archivo CSV
+                </h5>
+            </div>
+            <div class="card-body">
+                <pre class="bg-light p-3 border rounded"><code>profesor_email,materia_codigo
+profesor1@universidad.edu,MAT-101
+profesor1@universidad.edu,MAT-201
+profesor2@universidad.edu,FIS-101
+profesor2@universidad.edu,FIS-102
+profesor3@universidad.edu,QUI-101</code></pre>
+                <p class="text-muted mb-0">
+                    <i class="fas fa-lightbulb me-1"></i>
+                    <strong>Consejo:</strong> Exporta las asignaciones actuales para tener una base y editarla según necesites.
+                </p>
+            </div>
+        </div>
+
+        <!-- Casos de uso -->
+        <div class="card mt-4">
+            <div class="card-header bg-light">
+                <h5 class="mb-0">
+                    <i class="fas fa-question-circle me-2"></i>
+                    Casos de uso comunes
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-check text-success me-1"></i> Importación masiva inicial</h6>
+                        <p class="small text-muted">Crea un CSV con todas las asignaciones del ciclo escolar y cárgalo de una vez.</p>
+                    </div>
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-check text-success me-1"></i> Duplicar ciclo anterior</h6>
+                        <p class="small text-muted">Exporta asignaciones del ciclo pasado, edita si es necesario, y reimporta.</p>
+                    </div>
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-check text-success me-1"></i> Asignaciones por cuatrimestre</h6>
+                        <p class="small text-muted">Crea CSVs separados por cuatrimestre para mejor organización.</p>
+                    </div>
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-check text-success me-1"></i> Correcciones masivas</h6>
+                        <p class="small text-muted">Exporta, corrige en Excel, y reimporta para actualizar rápidamente.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

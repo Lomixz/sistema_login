@@ -8,8 +8,11 @@ from forms import (LoginForm, RegistrationForm, HorarioForm, EliminarHorarioForm
                    GenerarHorariosForm, EditarHorarioAcademicoForm, EliminarHorarioAcademicoForm,
                    DisponibilidadProfesorForm, EditarDisponibilidadProfesorForm, AgregarProfesorForm,
                    EditarUsuarioForm, AsignarMateriasProfesorForm, GrupoForm, AsignarMateriasGrupoForm,
-                   CambiarPasswordProfesorForm, ImportarCarrerasForm)
-from utils import procesar_archivo_profesores, generar_pdf_profesores, procesar_archivo_materias, generar_pdf_materias, generar_plantilla_csv, procesar_archivo_carreras, generar_plantilla_csv_carreras
+                   CambiarPasswordProfesorForm, ImportarCarrerasForm, ImportarAsignacionesForm)
+from utils import (procesar_archivo_profesores, generar_pdf_profesores, procesar_archivo_materias, 
+                   generar_pdf_materias, generar_plantilla_csv, procesar_archivo_carreras, 
+                   generar_plantilla_csv_carreras, procesar_archivo_asignaciones, 
+                   generar_plantilla_csv_asignaciones, calcular_carga_profesor)
 from datetime import time, datetime
 import os
 import pandas as pd
@@ -1316,6 +1319,184 @@ def ver_materias_grupo(id):
     
     return render_template('admin/ver_materias_grupo.html', grupo=grupo)
 
+@app.route('/admin/grupos/asignacion-masiva-materias', methods=['GET', 'POST'])
+@login_required
+def asignacion_masiva_materias_grupos():
+    """Asignación masiva de materias a grupos - vista matricial"""
+    if not current_user.is_admin() and not current_user.is_jefe_carrera():
+        flash('No tienes permisos para acceder a esta página.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    # Obtener filtros
+    carrera_id = request.args.get('carrera_id', type=int)
+    cuatrimestre = request.args.get('cuatrimestre', type=int)
+    
+    # Si es jefe de carrera, filtrar por su carrera
+    if current_user.is_jefe_carrera():
+        carrera_id = current_user.carrera_id
+    
+    # Obtener carreras para el filtro
+    if current_user.is_admin():
+        carreras = Carrera.query.filter_by(activa=True).order_by(Carrera.nombre).all()
+    else:
+        carreras = [current_user.carrera]
+    
+    grupos = []
+    materias = []
+    asignaciones_actuales = {}  # {grupo_id: [materia_ids]}
+    
+    if carrera_id and cuatrimestre:
+        # Obtener grupos
+        grupos = Grupo.query.filter_by(
+            carrera_id=carrera_id,
+            cuatrimestre=cuatrimestre,
+            activo=True
+        ).order_by(Grupo.codigo).all()
+        
+        # Obtener materias del cuatrimestre
+        materias = Materia.query.filter_by(
+            carrera_id=carrera_id,
+            cuatrimestre=cuatrimestre,
+            activa=True
+        ).order_by(Materia.codigo).all()
+        
+        # Obtener asignaciones actuales
+        for grupo in grupos:
+            asignaciones_actuales[grupo.id] = [m.id for m in grupo.materias]
+    
+    # Procesar POST (guardar cambios)
+    if request.method == 'POST':
+        try:
+            # Procesar asignaciones desde el formulario
+            for grupo in grupos:
+                materias_seleccionadas = []
+                for materia in materias:
+                    checkbox_name = f'asignacion_{grupo.id}_{materia.id}'
+                    if request.form.get(checkbox_name) == 'on':
+                        materias_seleccionadas.append(materia)
+                
+                # Actualizar materias del grupo
+                grupo.materias = materias_seleccionadas
+            
+            db.session.commit()
+            flash('Asignaciones actualizadas exitosamente.', 'success')
+            return redirect(url_for('asignacion_masiva_materias_grupos', carrera_id=carrera_id, cuatrimestre=cuatrimestre))
+            
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error al guardar asignaciones: {str(e)}', 'error')
+    
+    return render_template('admin/asignacion_masiva_materias_grupos.html',
+                         carreras=carreras,
+                         carrera_id=carrera_id,
+                         cuatrimestre=cuatrimestre,
+                         grupos=grupos,
+                         materias=materias,
+                         asignaciones_actuales=asignaciones_actuales)
+
+@app.route('/admin/grupos/importar-asignaciones-materias', methods=['GET', 'POST'])
+@login_required
+def importar_asignaciones_grupos():
+    """Importar asignaciones de materias a grupos desde CSV"""
+    if not current_user.is_admin() and not current_user.is_jefe_carrera():
+        flash('No tienes permisos para acceder a esta página.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    from forms import ImportarAsignacionesGrupoForm
+    form = ImportarAsignacionesGrupoForm()
+    
+    if form.validate_on_submit():
+        from utils import procesar_archivo_asignaciones_grupo
+        archivo = form.archivo.data
+        resultado = procesar_archivo_asignaciones_grupo(archivo)
+        
+        if resultado['exito']:
+            flash(resultado['mensaje'], 'success')
+            if resultado['errores']:
+                for error in resultado['errores'][:10]:  # Mostrar máximo 10 errores
+                    flash(error, 'warning')
+        else:
+            flash(resultado['mensaje'], 'error')
+            for error in resultado['errores'][:5]:
+                flash(error, 'error')
+        
+        return redirect(url_for('asignacion_masiva_materias_grupos'))
+    
+    return render_template('admin/importar_asignaciones_grupos.html', form=form)
+
+@app.route('/admin/grupos/descargar-plantilla-asignaciones')
+@login_required
+def descargar_plantilla_asignaciones_grupos():
+    """Descargar plantilla CSV para importar asignaciones de materias a grupos"""
+    if not current_user.is_admin() and not current_user.is_jefe_carrera():
+        flash('No tienes permisos para acceder a esta página.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    from utils import generar_plantilla_csv_asignaciones_grupo
+    contenido_csv = generar_plantilla_csv_asignaciones_grupo()
+    
+    response = make_response(contenido_csv)
+    response.headers['Content-Type'] = 'text/csv; charset=utf-8'
+    response.headers['Content-Disposition'] = 'attachment; filename=plantilla_asignaciones_grupos.csv'
+    
+    return response
+
+@app.route('/admin/grupos/exportar-asignaciones-materias')
+@login_required
+def exportar_asignaciones_grupos():
+    """Exportar asignaciones actuales de materias a grupos en CSV"""
+    if not current_user.is_admin() and not current_user.is_jefe_carrera():
+        flash('No tienes permisos para acceder a esta página.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    carrera_id = request.args.get('carrera_id', type=int)
+    cuatrimestre = request.args.get('cuatrimestre', type=int)
+    
+    # Si es jefe de carrera, forzar su carrera
+    if current_user.is_jefe_carrera():
+        carrera_id = current_user.carrera_id
+    
+    from utils import exportar_asignaciones_grupo_csv
+    contenido_csv = exportar_asignaciones_grupo_csv(carrera_id, cuatrimestre)
+    
+    response = make_response(contenido_csv)
+    response.headers['Content-Type'] = 'text/csv; charset=utf-8'
+    
+    filename = 'asignaciones_grupos'
+    if carrera_id:
+        carrera = Carrera.query.get(carrera_id)
+        if carrera:
+            filename += f'_{carrera.codigo}'
+    if cuatrimestre:
+        filename += f'_C{cuatrimestre}'
+    filename += '.csv'
+    
+    response.headers['Content-Disposition'] = f'attachment; filename={filename}'
+    
+    return response
+
+@app.route('/admin/grupos/auto-asignar-materias', methods=['POST'])
+@login_required
+def auto_asignar_materias_grupos():
+    """Auto-asignar todas las materias del cuatrimestre a los grupos"""
+    if not current_user.is_admin() and not current_user.is_jefe_carrera():
+        return jsonify({'exito': False, 'mensaje': 'No tienes permisos'}), 403
+    
+    carrera_id = request.form.get('carrera_id', type=int)
+    cuatrimestre = request.form.get('cuatrimestre', type=int)
+    
+    # Si es jefe de carrera, forzar su carrera
+    if current_user.is_jefe_carrera():
+        carrera_id = current_user.carrera_id
+    
+    if not carrera_id or not cuatrimestre:
+        return jsonify({'exito': False, 'mensaje': 'Faltan parámetros'}), 400
+    
+    from utils import auto_asignar_materias_grupo
+    resultado = auto_asignar_materias_grupo(carrera_id, cuatrimestre)
+    
+    return jsonify(resultado)
+
 # Rutas de gestión de horarios (solo administradores)
 @app.route('/admin/horarios')
 @login_required
@@ -2213,12 +2394,18 @@ def agregar_profesor():
                 nombre=form.nombre.data,
                 apellido=form.apellido.data,
                 rol=form.tipo_profesor.data,
-                telefono=form.telefono.data,
-                carrera_id=int(form.carrera.data)
+                telefono=form.telefono.data
             )
             
             db.session.add(nuevo_profesor)
             db.session.flush()  # Obtener el ID del profesor sin hacer commit
+            
+            # Asignar carrera (relación many-to-many para profesores)
+            if form.carrera.data:
+                from models import Carrera
+                carrera = Carrera.query.get(int(form.carrera.data))
+                if carrera:
+                    nuevo_profesor.carreras = [carrera]
             
             # Guardar disponibilidades
             disponibilidades_data = form.get_disponibilidades_data()
@@ -2511,12 +2698,19 @@ def asignacion_masiva_materias():
     # Obtener filtros
     carrera_id = request.args.get('carrera', type=int)
     cuatrimestre = request.args.get('cuatrimestre', type=int)
+    solo_disponibles = request.args.get('solo_disponibles', type=int, default=0)
     
     # Obtener todos los profesores activos
-    profesores = User.query.filter(
+    profesores_query = User.query.filter(
         User.rol.in_(['profesor_completo', 'profesor_asignatura']),
         User.activo == True
-    ).order_by(User.apellido, User.nombre).all()
+    )
+    
+    # Si se filtra por carrera, filtrar profesores de esa carrera
+    if carrera_id:
+        profesores_query = profesores_query.filter(User.carreras.any(id=carrera_id))
+    
+    profesores = profesores_query.order_by(User.apellido, User.nombre).all()
     
     # Obtener materias activas
     materias_query = Materia.query.filter_by(activa=True)
@@ -2537,13 +2731,234 @@ def asignacion_masiva_materias():
     for profesor in profesores:
         asignaciones_actuales[profesor.id] = set(m.id for m in profesor.materias)
     
+    # Calcular carga de trabajo de cada profesor
+    cargas_profesores = {}
+    for profesor in profesores:
+        cargas_profesores[profesor.id] = calcular_carga_profesor(profesor)
+    
+    # Si se solicita filtrar solo profesores disponibles, filtrar
+    if solo_disponibles:
+        profesores = [p for p in profesores if cargas_profesores[p.id]['puede_mas']]
+    
     return render_template('admin/asignacion_masiva_materias.html',
                          profesores=profesores,
                          materias=materias,
                          carreras=carreras,
                          asignaciones_actuales=asignaciones_actuales,
+                         cargas_profesores=cargas_profesores,
                          filtro_carrera=carrera_id,
-                         filtro_cuatrimestre=cuatrimestre)
+                         filtro_cuatrimestre=cuatrimestre,
+                         solo_disponibles=solo_disponibles)
+
+@app.route('/admin/asignacion-masiva-materias/importar', methods=['GET', 'POST'])
+@login_required
+def importar_asignaciones_masivas():
+    """Importar asignaciones masivas desde archivo CSV (solo admin)"""
+    if not current_user.is_admin():
+        flash('No tienes permisos para acceder a esta página.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    form = ImportarAsignacionesForm()
+    
+    if form.validate_on_submit():
+        try:
+            archivo = form.archivo.data
+            
+            # Procesar el archivo
+            resultado = procesar_archivo_asignaciones(archivo)
+            
+            if resultado['exito'] or resultado['asignados'] > 0:
+                # Mostrar resultados
+                flash(resultado['mensaje'], 'success')
+                
+                # Mostrar asignaciones realizadas
+                if resultado['asignaciones_realizadas']:
+                    asignaciones_msg = "Asignaciones realizadas: "
+                    for asig in resultado['asignaciones_realizadas'][:10]:  # Limitar a 10
+                        asignaciones_msg += f"{asig['profesor']} → {asig['materia_codigo']}, "
+                    flash(asignaciones_msg.rstrip(', '), 'info')
+                    
+                    if len(resultado['asignaciones_realizadas']) > 10:
+                        flash(f"... y {len(resultado['asignaciones_realizadas']) - 10} asignaciones más.", 'info')
+                
+                # Mostrar errores si los hay
+                if resultado['errores']:
+                    for error in resultado['errores'][:5]:  # Mostrar solo los primeros 5
+                        flash(error, 'warning')
+                    if len(resultado['errores']) > 5:
+                        flash(f"... y {len(resultado['errores']) - 5} errores más.", 'warning')
+                
+                return redirect(url_for('asignacion_masiva_materias'))
+            else:
+                flash(resultado['mensaje'], 'warning')
+                
+                # Mostrar errores
+                if resultado['errores']:
+                    for error in resultado['errores'][:5]:
+                        flash(error, 'warning')
+                    if len(resultado['errores']) > 5:
+                        flash(f"... y {len(resultado['errores']) - 5} errores más.", 'warning')
+                
+        except Exception as e:
+            flash(f'Error al procesar el archivo: {str(e)}', 'error')
+    
+    return render_template('admin/importar_asignaciones.html', form=form)
+
+@app.route('/admin/asignacion-masiva-materias/plantilla')
+@login_required
+def descargar_plantilla_asignaciones():
+    """Descargar plantilla CSV para importar asignaciones (solo admin)"""
+    if not current_user.is_admin():
+        flash('No tienes permisos para realizar esta acción.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    try:
+        plantilla = generar_plantilla_csv_asignaciones()
+        
+        response = make_response(plantilla)
+        response.headers['Content-Type'] = 'text/csv; charset=utf-8'
+        response.headers['Content-Disposition'] = 'attachment; filename=plantilla_asignaciones.csv'
+        
+        return response
+        
+    except Exception as e:
+        flash(f'Error al generar la plantilla: {str(e)}', 'error')
+        return redirect(url_for('asignacion_masiva_materias'))
+
+@app.route('/admin/asignacion-masiva-materias/exportar-actuales')
+@login_required
+def exportar_asignaciones_actuales():
+    """Exportar asignaciones actuales a CSV para editar y reimportar (solo admin)"""
+    if not current_user.is_admin():
+        flash('No tienes permisos para realizar esta acción.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    try:
+        # Obtener filtros
+        carrera_id = request.args.get('carrera', type=int)
+        cuatrimestre = request.args.get('cuatrimestre', type=int)
+        
+        # Construir consulta
+        profesores_query = User.query.filter(
+            User.rol.in_(['profesor_completo', 'profesor_asignatura']),
+            User.activo == True
+        )
+        
+        if carrera_id:
+            profesores_query = profesores_query.filter(User.carreras.any(id=carrera_id))
+        
+        profesores = profesores_query.order_by(User.apellido, User.nombre).all()
+        
+        # Generar CSV
+        csv_content = "profesor_email,materia_codigo\n"
+        
+        for profesor in profesores:
+            for materia in profesor.materias:
+                # Aplicar filtros de cuatrimestre si corresponde
+                if cuatrimestre and materia.cuatrimestre != cuatrimestre:
+                    continue
+                if carrera_id and materia.carrera_id != carrera_id:
+                    continue
+                    
+                csv_content += f"{profesor.email},{materia.codigo}\n"
+        
+        response = make_response(csv_content)
+        response.headers['Content-Type'] = 'text/csv; charset=utf-8'
+        
+        # Nombre del archivo con filtros aplicados
+        filename = 'asignaciones_actuales'
+        if carrera_id:
+            carrera = Carrera.query.get(carrera_id)
+            if carrera:
+                filename += f'_{carrera.codigo}'
+        if cuatrimestre:
+            filename += f'_cuatri{cuatrimestre}'
+        filename += '.csv'
+        
+        response.headers['Content-Disposition'] = f'attachment; filename={filename}'
+        
+        return response
+        
+    except Exception as e:
+        flash(f'Error al exportar asignaciones: {str(e)}', 'error')
+        return redirect(url_for('asignacion_masiva_materias'))
+
+@app.route('/admin/asignacion-masiva-materias/auto-asignar', methods=['POST'])
+@login_required
+def auto_asignar_por_carrera():
+    """Auto-asignar materias de una carrera a profesores de esa carrera (solo admin)"""
+    if not current_user.is_admin():
+        return jsonify({'exito': False, 'mensaje': 'No tienes permisos'}), 403
+    
+    try:
+        carrera_id = request.form.get('carrera_id', type=int)
+        cuatrimestre = request.form.get('cuatrimestre', type=int)
+        
+        if not carrera_id:
+            return jsonify({'exito': False, 'mensaje': 'Debe especificar una carrera'}), 400
+        
+        carrera = Carrera.query.get_or_404(carrera_id)
+        
+        # Obtener profesores de la carrera
+        profesores = User.query.filter(
+            User.rol.in_(['profesor_completo', 'profesor_asignatura']),
+            User.activo == True,
+            User.carreras.any(id=carrera_id)
+        ).all()
+        
+        if not profesores:
+            return jsonify({'exito': False, 'mensaje': f'No hay profesores activos en {carrera.nombre}'}), 400
+        
+        # Obtener materias de la carrera
+        materias_query = Materia.query.filter_by(carrera_id=carrera_id, activa=True)
+        if cuatrimestre:
+            materias_query = materias_query.filter_by(cuatrimestre=cuatrimestre)
+        materias = materias_query.all()
+        
+        if not materias:
+            return jsonify({'exito': False, 'mensaje': 'No hay materias activas para asignar'}), 400
+        
+        # Estrategia: distribuir materias equitativamente
+        # Prioridad a profesores de tiempo completo
+        profesores_tc = [p for p in profesores if p.rol == 'profesor_completo']
+        profesores_pa = [p for p in profesores if p.rol == 'profesor_asignatura']
+        
+        # Combinar listas (TC primero)
+        profesores_ordenados = profesores_tc + profesores_pa
+        
+        contador_asignaciones = 0
+        indice_profesor = 0
+        
+        for materia in materias:
+            # Buscar profesor que no tenga esta materia y tenga capacidad
+            asignado = False
+            intentos = 0
+            
+            while not asignado and intentos < len(profesores_ordenados):
+                profesor = profesores_ordenados[indice_profesor]
+                carga = calcular_carga_profesor(profesor)
+                
+                # Si el profesor no tiene la materia y tiene capacidad
+                if materia not in profesor.materias and carga['puede_mas']:
+                    profesor.materias.append(materia)
+                    contador_asignaciones += 1
+                    asignado = True
+                
+                # Avanzar al siguiente profesor (round-robin)
+                indice_profesor = (indice_profesor + 1) % len(profesores_ordenados)
+                intentos += 1
+        
+        db.session.commit()
+        
+        return jsonify({
+            'exito': True,
+            'mensaje': f'{contador_asignaciones} materias asignadas automáticamente en {carrera.nombre}',
+            'asignaciones': contador_asignaciones
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'exito': False, 'mensaje': f'Error: {str(e)}'}), 500
 
 # Manejo de errores
 @app.errorhandler(404)
@@ -2894,11 +3309,10 @@ def agregar_usuario():
             nuevo_usuario.carrera_id = int(form.carrera.data) if form.carrera.data else None
         elif form.rol.data in ['profesor_completo', 'profesor_asignatura']:
             # Para profesores: usar carreras (relación many-to-many)
-            if form.carrera.data:
+            if form.carreras.data:
                 from models import Carrera
-                carrera = Carrera.query.get(int(form.carrera.data))
-                if carrera:
-                    nuevo_usuario.carreras = [carrera]
+                carreras_seleccionadas = Carrera.query.filter(Carrera.id.in_(form.carreras.data)).all()
+                nuevo_usuario.carreras = carreras_seleccionadas
 
         try:
             db.session.add(nuevo_usuario)

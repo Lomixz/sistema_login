@@ -85,7 +85,8 @@
                             <div class="col-md-6">
                                 <div class="form-group">
                                     {{ form.telefono.label(class="form-label") }}
-                                    {{ form.telefono(class="form-control") }}
+                                    {{ form.telefono(class="form-control", placeholder="Ej: 5512345678 (10 dígitos)", maxlength="10", pattern="[0-9]{10}") }}
+                                    <small class="text-muted">Ingresa 10 dígitos sin espacios ni guiones</small>
                                 </div>
                             </div>
                         </div>

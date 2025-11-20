@@ -99,13 +99,14 @@
                                 <span class="input-group-text">
                                     <i class="fas fa-phone"></i>
                                 </span>
-                                {{ form.telefono(class="form-control", placeholder="Ej: +54 11 1234-5678") }}
+                                {{ form.telefono(class="form-control", placeholder="Ej: 5512345678 (10 dígitos)", maxlength="10", pattern="[0-9]{10}") }}
                             </div>
                             {% if form.telefono.errors %}
                                 {% for error in form.telefono.errors %}
                                     <div class="text-danger small">{{ error }}</div>
                                 {% endfor %}
                             {% endif %}
+                            <small class="text-muted">Ingresa 10 dígitos sin espacios ni guiones</small>
                         </div>
 
                         <!-- Información académica -->

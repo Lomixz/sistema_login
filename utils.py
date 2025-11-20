@@ -9,7 +9,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib.units import inch
 from datetime import datetime
-from models import User, Carrera, db, Materia
+from models import User, Carrera, db, Materia, HorarioAcademico
 
 def generar_password_temporal():
     """Generar una contraseña temporal aleatoria de 8 caracteres"""
@@ -823,3 +823,435 @@ def generar_plantilla_csv_carreras():
     plantilla += "DER,Derecho,Carrera de ciencias jurídicas,Facultad de Derecho\n"
     
     return plantilla
+
+def procesar_archivo_asignaciones(archivo):
+    """
+    Procesar archivo CSV con asignaciones de materias a profesores
+    
+    Formato esperado del archivo CSV:
+    - profesor_email, materia_codigo
+    
+    Args:
+        archivo: Archivo CSV cargado
+    
+    Returns:
+        dict: Resultado de la operación con estadísticas y errores
+    """
+    resultado = {
+        'exito': False,
+        'procesados': 0,
+        'asignados': 0,
+        'ya_asignados': 0,
+        'errores': [],
+        'asignaciones_realizadas': [],
+        'mensaje': ''
+    }
+    
+    try:
+        # Leer archivo CSV con diferentes codificaciones
+        try:
+            df = pd.read_csv(archivo, encoding='utf-8')
+        except UnicodeDecodeError:
+            archivo.seek(0)
+            try:
+                df = pd.read_csv(archivo, encoding='latin-1')
+            except:
+                archivo.seek(0)
+                df = pd.read_csv(archivo, encoding='iso-8859-1')
+        
+        # Limpiar nombres de columnas (eliminar espacios y convertir a minúsculas)
+        df.columns = df.columns.str.strip().str.lower()
+        
+        # Validar columnas requeridas
+        columnas_requeridas = ['profesor_email', 'materia_codigo']
+        columnas_faltantes = [col for col in columnas_requeridas if col not in df.columns]
+        
+        if columnas_faltantes:
+            columnas_encontradas = ', '.join(df.columns.tolist())
+            resultado['mensaje'] = f"Columnas faltantes: {', '.join(columnas_faltantes)}. Columnas encontradas: {columnas_encontradas}"
+            return resultado
+        
+        # Procesar cada fila
+        for index, row in df.iterrows():
+            try:
+                resultado['procesados'] += 1
+                
+                # Validar datos básicos
+                if pd.isna(row['profesor_email']) or pd.isna(row['materia_codigo']):
+                    resultado['errores'].append(f"Fila {index + 2}: Email del profesor o código de materia vacío")
+                    continue
+                
+                # Limpiar y normalizar datos
+                profesor_email = str(row['profesor_email']).strip().lower()
+                materia_codigo = str(row['materia_codigo']).strip().upper()
+                
+                # Buscar profesor por email
+                profesor = User.query.filter(
+                    User.email == profesor_email,
+                    User.activo == True,
+                    User.rol.in_(['profesor_completo', 'profesor_asignatura'])
+                ).first()
+                
+                if not profesor:
+                    resultado['errores'].append(f"Fila {index + 2}: No se encontró profesor activo con email '{profesor_email}'")
+                    continue
+                
+                # Buscar materia por código
+                materia = Materia.query.filter(
+                    Materia.codigo == materia_codigo,
+                    Materia.activa == True
+                ).first()
+                
+                if not materia:
+                    resultado['errores'].append(f"Fila {index + 2}: No se encontró materia activa con código '{materia_codigo}'")
+                    continue
+                
+                # Verificar si ya está asignada
+                if materia in profesor.materias:
+                    resultado['ya_asignados'] += 1
+                    continue
+                
+                # Asignar materia al profesor
+                profesor.materias.append(materia)
+                resultado['asignados'] += 1
+                resultado['asignaciones_realizadas'].append({
+                    'profesor': profesor.get_nombre_completo(),
+                    'profesor_email': profesor_email,
+                    'materia': materia.nombre,
+                    'materia_codigo': materia_codigo
+                })
+                
+            except Exception as e:
+                resultado['errores'].append(f"Fila {index + 2}: Error al procesar - {str(e)}")
+                continue
+        
+        # Guardar cambios en la base de datos
+        if resultado['asignados'] > 0:
+            db.session.commit()
+            resultado['exito'] = True
+            resultado['mensaje'] = f"Importación completada: {resultado['asignados']} asignaciones nuevas, {resultado['ya_asignados']} ya existían"
+        else:
+            db.session.rollback()
+            if resultado['ya_asignados'] > 0:
+                resultado['mensaje'] = f"Todas las asignaciones ({resultado['ya_asignados']}) ya existían"
+            else:
+                resultado['mensaje'] = "No se realizaron asignaciones"
+        
+    except Exception as e:
+        db.session.rollback()
+        resultado['mensaje'] = f"Error al procesar el archivo: {str(e)}"
+        resultado['errores'].append(f"Error general: {str(e)}")
+    
+    return resultado
+
+def generar_plantilla_csv_asignaciones():
+    """
+    Generar plantilla CSV para importación de asignaciones de materias
+    
+    Returns:
+        str: Contenido del archivo CSV de plantilla
+    """
+    plantilla = "profesor_email,materia_codigo\n"
+    plantilla += "profesor1@universidad.edu,MAT-101\n"
+    plantilla += "profesor1@universidad.edu,MAT-201\n"
+    plantilla += "profesor2@universidad.edu,FIS-101\n"
+    plantilla += "profesor2@universidad.edu,FIS-102\n"
+    
+    return plantilla
+
+def calcular_carga_profesor(profesor):
+    """
+    Calcular la carga horaria de un profesor basándose en sus materias y horarios
+    
+    Args:
+        profesor: Objeto User (profesor)
+    
+    Returns:
+        dict: Información sobre la carga del profesor
+    """
+    # Obtener horarios del profesor
+    horarios = HorarioAcademico.query.filter_by(
+        profesor_id=profesor.id,
+        activo=True
+    ).all()
+    
+    # Calcular horas totales
+    total_horas = len(horarios)  # Cada horario es 1 hora
+    total_materias = len(profesor.materias)
+    
+    # Definir límites según tipo de profesor
+    # Profesores pueden trabajar máximo 8 horas al día x 5 días = 40 horas semanales
+    if profesor.rol == 'profesor_completo':
+        limite_recomendado = 35  # Recomendado: 35 horas
+        limite_maximo = 40       # Máximo legal: 40 horas (8 horas/día)
+    else:  # profesor_asignatura
+        limite_recomendado = 15  # Recomendado: 15 horas
+        limite_maximo = 20       # Máximo: 20 horas
+    
+    # Determinar estado de carga
+    if total_horas == 0:
+        estado = 'sin_carga'
+        color = 'secondary'
+    elif total_horas <= limite_recomendado * 0.5:
+        estado = 'baja'
+        color = 'info'
+    elif total_horas <= limite_recomendado:
+        estado = 'adecuada'
+        color = 'success'
+    elif total_horas <= limite_maximo:
+        estado = 'alta'
+        color = 'warning'
+    else:
+        estado = 'sobrecarga'
+        color = 'danger'
+    
+    porcentaje = (total_horas / limite_maximo * 100) if limite_maximo > 0 else 0
+    
+    return {
+        'total_horas': total_horas,
+        'total_materias': total_materias,
+        'limite_recomendado': limite_recomendado,
+        'limite_maximo': limite_maximo,
+        'porcentaje': min(porcentaje, 100),
+        'estado': estado,
+        'color': color,
+        'puede_mas': total_horas < limite_maximo
+    }
+
+
+def procesar_archivo_asignaciones_grupo(archivo):
+    """
+    Procesar archivo CSV con asignaciones de materias a grupos
+    
+    Formato esperado del archivo:
+    - grupo_codigo, materia_codigo
+    
+    Ejemplo:
+    1MSC1,MAT101
+    1MSC1,FIS101
+    2MSC3,BD201
+    
+    Returns:
+        dict: Resultado del procesamiento con éxito, procesados, errores, etc.
+    """
+    resultado = {
+        'exito': False,
+        'procesados': 0,
+        'asignaciones_creadas': 0,
+        'errores': [],
+        'mensaje': ''
+    }
+    
+    try:
+        # Leer archivo CSV
+        if archivo.filename.endswith('.csv'):
+            try:
+                df = pd.read_csv(archivo, encoding='utf-8')
+            except:
+                archivo.seek(0)
+                df = pd.read_csv(archivo, encoding='latin-1')
+        else:
+            resultado['mensaje'] = 'Solo se permiten archivos CSV'
+            return resultado
+        
+        # Validar columnas
+        columnas_requeridas = ['grupo_codigo', 'materia_codigo']
+        if not all(col in df.columns for col in columnas_requeridas):
+            resultado['mensaje'] = f'El archivo debe tener las columnas: {", ".join(columnas_requeridas)}'
+            return resultado
+        
+        # Eliminar filas vacías
+        df = df.dropna(subset=columnas_requeridas)
+        
+        from models import Grupo, Materia
+        
+        # Procesar cada fila
+        asignaciones_por_grupo = {}  # {grupo_id: [materia_ids]}
+        
+        for index, row in df.iterrows():
+            fila = index + 2  # +2 porque índice 0 + 1 (header) + 1 (base 1)
+            
+            try:
+                grupo_codigo = str(row['grupo_codigo']).strip()
+                materia_codigo = str(row['materia_codigo']).strip()
+                
+                # Buscar grupo
+                grupo = Grupo.query.filter_by(codigo=grupo_codigo, activo=True).first()
+                if not grupo:
+                    resultado['errores'].append(f'Fila {fila}: Grupo "{grupo_codigo}" no encontrado o inactivo')
+                    continue
+                
+                # Buscar materia
+                materia = Materia.query.filter_by(codigo=materia_codigo, activa=True).first()
+                if not materia:
+                    resultado['errores'].append(f'Fila {fila}: Materia "{materia_codigo}" no encontrada o inactiva')
+                    continue
+                
+                # Validar que la materia sea de la misma carrera y cuatrimestre
+                if materia.carrera_id != grupo.carrera_id:
+                    resultado['errores'].append(
+                        f'Fila {fila}: La materia "{materia_codigo}" no pertenece a la carrera del grupo "{grupo_codigo}"'
+                    )
+                    continue
+                
+                if materia.cuatrimestre != grupo.cuatrimestre:
+                    resultado['errores'].append(
+                        f'Fila {fila}: La materia "{materia_codigo}" (cuatrimestre {materia.cuatrimestre}) '
+                        f'no coincide con el cuatrimestre del grupo "{grupo_codigo}" (cuatrimestre {grupo.cuatrimestre})'
+                    )
+                    continue
+                
+                # Agrupar materias por grupo
+                if grupo.id not in asignaciones_por_grupo:
+                    asignaciones_por_grupo[grupo.id] = {'grupo': grupo, 'materias': set()}
+                
+                asignaciones_por_grupo[grupo.id]['materias'].add(materia)
+                resultado['procesados'] += 1
+                
+            except Exception as e:
+                resultado['errores'].append(f'Fila {fila}: Error al procesar - {str(e)}')
+                continue
+        
+        # Aplicar asignaciones
+        if asignaciones_por_grupo:
+            for grupo_id, data in asignaciones_por_grupo.items():
+                grupo = data['grupo']
+                materias = list(data['materias'])
+                
+                # Agregar nuevas materias (sin eliminar las existentes)
+                materias_actuales = set(grupo.materias)
+                materias_nuevas = set(materias) - materias_actuales
+                
+                if materias_nuevas:
+                    grupo.materias.extend(list(materias_nuevas))
+                    resultado['asignaciones_creadas'] += len(materias_nuevas)
+            
+            db.session.commit()
+            resultado['exito'] = True
+            resultado['mensaje'] = f'{resultado["asignaciones_creadas"]} asignaciones creadas exitosamente'
+        else:
+            resultado['mensaje'] = 'No se procesaron asignaciones válidas'
+        
+    except Exception as e:
+        resultado['mensaje'] = f'Error al procesar archivo: {str(e)}'
+        resultado['errores'].append(str(e))
+    
+    return resultado
+
+
+def generar_plantilla_csv_asignaciones_grupo():
+    """
+    Generar plantilla CSV para importar asignaciones de materias a grupos
+    
+    Returns:
+        str: Contenido del archivo CSV de ejemplo
+    """
+    return """grupo_codigo,materia_codigo
+1MSC1,MAT101
+1MSC1,FIS101
+1MSC1,PROG101
+2MSC3,BD201
+2MSC3,WEB201"""
+
+
+def exportar_asignaciones_grupo_csv(carrera_id=None, cuatrimestre=None):
+    """
+    Exportar asignaciones actuales de materias a grupos en formato CSV
+    
+    Args:
+        carrera_id: ID de carrera para filtrar (opcional)
+        cuatrimestre: Número de cuatrimestre para filtrar (opcional)
+    
+    Returns:
+        str: Contenido CSV con las asignaciones actuales
+    """
+    from models import Grupo
+    
+    # Construir query con filtros
+    query = Grupo.query.filter_by(activo=True)
+    
+    if carrera_id:
+        query = query.filter_by(carrera_id=carrera_id)
+    
+    if cuatrimestre:
+        query = query.filter_by(cuatrimestre=cuatrimestre)
+    
+    grupos = query.order_by(Grupo.codigo).all()
+    
+    # Generar CSV
+    lineas = ['grupo_codigo,materia_codigo']
+    
+    for grupo in grupos:
+        for materia in grupo.materias:
+            if materia.activa:
+                lineas.append(f'{grupo.codigo},{materia.codigo}')
+    
+    return '\n'.join(lineas)
+
+
+def auto_asignar_materias_grupo(carrera_id, cuatrimestre):
+    """
+    Auto-asignar todas las materias del cuatrimestre a los grupos correspondientes
+    
+    Args:
+        carrera_id: ID de la carrera
+        cuatrimestre: Número de cuatrimestre
+    
+    Returns:
+        dict: Resultado con éxito, grupos procesados, asignaciones creadas
+    """
+    resultado = {
+        'exito': False,
+        'grupos_procesados': 0,
+        'asignaciones_creadas': 0,
+        'mensaje': ''
+    }
+    
+    try:
+        from models import Grupo, Materia
+        
+        # Obtener grupos del cuatrimestre y carrera
+        grupos = Grupo.query.filter_by(
+            carrera_id=carrera_id,
+            cuatrimestre=cuatrimestre,
+            activo=True
+        ).all()
+        
+        if not grupos:
+            resultado['mensaje'] = 'No se encontraron grupos activos para esta carrera y cuatrimestre'
+            return resultado
+        
+        # Obtener materias del cuatrimestre y carrera
+        materias = Materia.query.filter_by(
+            carrera_id=carrera_id,
+            cuatrimestre=cuatrimestre,
+            activa=True
+        ).all()
+        
+        if not materias:
+            resultado['mensaje'] = 'No se encontraron materias activas para esta carrera y cuatrimestre'
+            return resultado
+        
+        # Asignar todas las materias a cada grupo
+        for grupo in grupos:
+            materias_actuales = set(grupo.materias)
+            materias_nuevas = set(materias) - materias_actuales
+            
+            if materias_nuevas:
+                grupo.materias.extend(list(materias_nuevas))
+                resultado['asignaciones_creadas'] += len(materias_nuevas)
+            
+            resultado['grupos_procesados'] += 1
+        
+        db.session.commit()
+        resultado['exito'] = True
+        resultado['mensaje'] = (
+            f'Se asignaron materias a {resultado["grupos_procesados"]} grupos. '
+            f'Total de asignaciones creadas: {resultado["asignaciones_creadas"]}'
+        )
+        
+    except Exception as e:
+        db.session.rollback()
+        resultado['mensaje'] = f'Error al auto-asignar materias: {str(e)}'
+    
+    return resultado

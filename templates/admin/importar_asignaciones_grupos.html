@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+
+{% block title %}Importar Asignaciones de Materias a Grupos - Sistema Académico{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow">
+                <div class="card-header bg-success text-white">
+                    <h4 class="mb-0">
+                        <i class="fas fa-file-upload me-2"></i>
+                        Importar Asignaciones de Materias a Grupos
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <!-- Instrucciones -->
+                    <div class="alert alert-info">
+                        <h5 class="alert-heading">
+                            <i class="fas fa-info-circle me-2"></i>
+                            Instrucciones
+                        </h5>
+                        <ol class="mb-0">
+                            <li>Descarga la plantilla CSV o exporta las asignaciones actuales</li>
+                            <li>Edita el archivo con tus asignaciones (usa Excel, LibreOffice o editor de texto)</li>
+                            <li>Guarda el archivo como CSV (separado por comas)</li>
+                            <li>Sube el archivo usando el formulario abajo</li>
+                        </ol>
+                    </div>
+
+                    <!-- Formato del Archivo -->
+                    <div class="card mb-4">
+                        <div class="card-header bg-light">
+                            <h6 class="mb-0">
+                                <i class="fas fa-file-csv me-2"></i>
+                                Formato del Archivo CSV
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <p class="mb-2">El archivo debe tener estas columnas:</p>
+                            <ul>
+                                <li><strong>grupo_codigo:</strong> Código del grupo (ej: 1MSC1, 2MVE3)</li>
+                                <li><strong>materia_codigo:</strong> Código de la materia (ej: MAT101, FIS201)</li>
+                            </ul>
+                            
+                            <p class="mb-2 mt-3"><strong>Ejemplo:</strong></p>
+                            <pre class="bg-light p-3 border rounded"><code>grupo_codigo,materia_codigo
+1MSC1,MAT101
+1MSC1,FIS101
+1MSC1,PROG101
+2MSC3,BD201
+2MSC3,WEB201</code></pre>
+                            
+                            <div class="alert alert-warning mt-3 mb-0">
+                                <strong><i class="fas fa-exclamation-triangle me-2"></i>Importante:</strong>
+                                <ul class="mb-0">
+                                    <li>Los códigos de grupos y materias deben existir en el sistema</li>
+                                    <li>La materia debe pertenecer a la misma carrera y cuatrimestre que el grupo</li>
+                                    <li>Las asignaciones se agregan a las existentes (no las reemplazan)</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Botones de Descarga -->
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <div class="d-grid">
+                                <a href="{{ url_for('descargar_plantilla_asignaciones_grupos') }}" class="btn btn-info btn-lg">
+                                    <i class="fas fa-file-download me-2"></i>
+                                    Descargar Plantilla
+                                </a>
+                                <small class="text-muted mt-2 text-center">Archivo de ejemplo vacío</small>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="d-grid">
+                                <a href="{{ url_for('exportar_asignaciones_grupos') }}" class="btn btn-warning btn-lg">
+                                    <i class="fas fa-file-export me-2"></i>
+                                    Exportar Actuales
+                                </a>
+                                <small class="text-muted mt-2 text-center">Asignaciones actuales para editar</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Formulario de Importación -->
+                    <form method="POST" enctype="multipart/form-data">
+                        {{ form.hidden_tag() }}
+                        
+                        <div class="card border-primary">
+                            <div class="card-header bg-primary text-white">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-upload me-2"></i>
+                                    Subir Archivo CSV
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="mb-3">
+                                    {{ form.archivo.label(class="form-label") }}
+                                    {{ form.archivo(class="form-control" + (" is-invalid" if form.archivo.errors else "")) }}
+                                    {% if form.archivo.errors %}
+                                        <div class="invalid-feedback">
+                                            {% for error in form.archivo.errors %}
+                                                {{ error }}
+                                            {% endfor %}
+                                        </div>
+                                    {% endif %}
+                                    <small class="form-text text-muted">
+                                        Solo archivos CSV (.csv)
+                                    </small>
+                                </div>
+
+                                <div class="d-grid gap-2">
+                                    {{ form.submit(class="btn btn-success btn-lg") }}
+                                    <a href="{{ url_for('asignacion_masiva_materias_grupos') }}" class="btn btn-secondary">
+                                        <i class="fas fa-arrow-left me-2"></i>
+                                        Volver
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+
+                    <!-- Tips -->
+                    <div class="card mt-4 border-info">
+                        <div class="card-header bg-info text-white">
+                            <h6 class="mb-0">
+                                <i class="fas fa-lightbulb me-2"></i>
+                                Tips y Recomendaciones
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <ul class="mb-0">
+                                <li><strong>Validación automática:</strong> El sistema validará que los códigos existan</li>
+                                <li><strong>Errores detallados:</strong> Si hay errores, se te mostrará qué líneas tienen problemas</li>
+                                <li><strong>Codificación:</strong> Guarda el archivo en UTF-8 para evitar problemas con acentos</li>
+                                <li><strong>Sin duplicados:</strong> Si un grupo ya tiene una materia asignada, se ignorará</li>
+                                <li><strong>Procesamiento por lotes:</strong> Puedes subir cientos de asignaciones a la vez</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

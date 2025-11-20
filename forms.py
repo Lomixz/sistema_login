@@ -38,7 +38,7 @@ class RegistrationForm(FlaskForm):
     ])
     
     telefono = StringField('Teléfono', validators=[
-        Length(max=20, message='El teléfono no puede exceder 20 caracteres')
+        Length(min=10, max=10, message='El teléfono debe tener exactamente 10 dígitos')
     ])
     
     password = PasswordField('Contraseña', validators=[
@@ -247,6 +247,24 @@ class ImportarCarrerasForm(FlaskForm):
     ])
     
     submit = SubmitField('Importar Carreras')
+
+class ImportarAsignacionesGrupoForm(FlaskForm):
+    """Formulario para importar asignaciones masivas de materias a grupos desde CSV"""
+    archivo = FileField('Archivo CSV', validators=[
+        DataRequired(message='Debe seleccionar un archivo'),
+        FileAllowed(['csv'], 'Solo se permiten archivos CSV')
+    ])
+    
+    submit = SubmitField('Importar Asignaciones')
+
+class ImportarAsignacionesForm(FlaskForm):
+    """Formulario para importar asignaciones de materias desde archivo CSV"""
+    archivo = FileField('Archivo CSV', validators=[
+        DataRequired(message='Debe seleccionar un archivo'),
+        FileAllowed(['csv'], 'Solo se permiten archivos CSV')
+    ])
+    
+    submit = SubmitField('Importar Asignaciones')
 
 class ImportarProfesoresForm(FlaskForm):
     """Formulario para importar profesores desde archivo CSV/Excel"""
@@ -560,9 +578,9 @@ class AgregarProfesorForm(FlaskForm):
     ])
     
     telefono = StringField('Teléfono', validators=[
-        Length(max=20, message='El teléfono no puede exceder 20 caracteres')
+        Length(min=10, max=10, message='El teléfono debe tener exactamente 10 dígitos')
     ])
-    
+
     password = PasswordField('Contraseña', validators=[
         DataRequired(message='La contraseña es obligatoria'),
         Length(min=6, message='La contraseña debe tener al menos 6 caracteres')
@@ -594,16 +612,17 @@ class AgregarProfesorForm(FlaskForm):
     
     def get_disponibilidades_data(self):
         """Obtener los datos de disponibilidad del formulario"""
+        from flask import request
         disponibilidades = []
         
-        # Procesar todos los campos que empiecen con 'disp_'
-        for field_name, field in self._fields.items():
-            if field_name.startswith('disp_') and field.data:
+        # Procesar todos los campos que empiecen con 'disp_' desde request.form
+        for field_name in request.form.keys():
+            if field_name.startswith('disp_'):
                 parts = field_name.split('_')
                 if len(parts) >= 3:
                     horario_id = parts[1]
                     dia_semana = parts[2]
-                    disponible = field.data
+                    disponible = True  # Si está en request.form, está marcado
                     
                     disponibilidades.append({
                         'horario_id': int(horario_id),
@@ -652,7 +671,7 @@ class AgregarUsuarioForm(FlaskForm):
     ])
 
     telefono = StringField('Teléfono', validators=[
-        Length(max=20, message='El teléfono no puede exceder 20 caracteres')
+        Length(min=10, max=10, message='El teléfono debe tener exactamente 10 dígitos')
     ])
 
     password = PasswordField('Contraseña', validators=[
@@ -768,7 +787,7 @@ class EditarUsuarioForm(FlaskForm):
     ])
 
     telefono = StringField('Teléfono', validators=[
-        Length(max=20, message='El teléfono no puede exceder 20 caracteres')
+        Length(min=10, max=10, message='El teléfono debe tener exactamente 10 dígitos')
     ])
 
     rol = SelectField('Rol', choices=[

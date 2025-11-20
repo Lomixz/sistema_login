@@ -7,21 +7,68 @@
     <div class="row mb-4">
         <div class="col-md-12">
             <div class="d-flex justify-content-between align-items-center">
-                <h2><i class="fas fa-tasks"></i> Asignación Masiva de Materias</h2>
-                <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">
-                    <i class="fas fa-arrow-left"></i> Volver al Panel
-                </a>
+                <div>
+                    <h2><i class="fas fa-tasks"></i> Asignación Masiva de Materias</h2>
+                    <p class="text-muted mb-0">Asigna materias a múltiples profesores de forma eficiente</p>
+                </div>
+                <div>
+                    <a href="{{ url_for('importar_asignaciones_masivas') }}" class="btn btn-success me-2">
+                        <i class="fas fa-file-upload"></i> Importar desde CSV
+                    </a>
+                    <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Volver
+                    </a>
+                </div>
             </div>
-            <p class="text-muted">Asigna materias a múltiples profesores de forma eficiente</p>
+        </div>
+    </div>
+
+    <!-- Herramientas Rápidas -->
+    <div class="card mb-4 border-primary">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="fas fa-magic"></i> Herramientas Rápidas</h5>
+        </div>
+        <div class="card-body">
+            <div class="row g-2">
+                <div class="col-md-3">
+                    <a href="{{ url_for('descargar_plantilla_asignaciones') }}" class="btn btn-outline-primary w-100">
+                        <i class="fas fa-download"></i> Plantilla CSV
+                    </a>
+                </div>
+                <div class="col-md-3">
+                    <a href="{{ url_for('exportar_asignaciones_actuales', carrera=filtro_carrera if filtro_carrera else '', cuatrimestre=filtro_cuatrimestre if filtro_cuatrimestre else '') }}" class="btn btn-outline-success w-100">
+                        <i class="fas fa-file-export"></i> Exportar Actuales
+                    </a>
+                </div>
+                <div class="col-md-3">
+                    {% if filtro_carrera %}
+                    <button type="button" class="btn btn-outline-warning w-100" onclick="autoAsignarCarrera()">
+                        <i class="fas fa-robot"></i> Auto-Asignar
+                    </button>
+                    {% else %}
+                    <button type="button" class="btn btn-outline-secondary w-100" disabled title="Selecciona una carrera primero">
+                        <i class="fas fa-robot"></i> Auto-Asignar
+                    </button>
+                    {% endif %}
+                </div>
+                <div class="col-md-3">
+                    <button type="button" class="btn btn-outline-info w-100" data-bs-toggle="modal" data-bs-target="#ayudaModal">
+                        <i class="fas fa-question-circle"></i> Ayuda
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 
     <!-- Filtros -->
     <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="fas fa-filter"></i> Filtros</h5>
+        </div>
         <div class="card-body">
             <form method="GET" action="{{ url_for('asignacion_masiva_materias') }}" id="filtrosForm">
-                <div class="row">
-                    <div class="col-md-4">
+                <div class="row g-3">
+                    <div class="col-md-3">
                         <label for="carrera" class="form-label">
                             <i class="fas fa-graduation-cap"></i> Carrera
                         </label>
@@ -29,12 +76,12 @@
                             <option value="">Todas las carreras</option>
                             {% for carrera in carreras %}
                             <option value="{{ carrera.id }}" {% if filtro_carrera == carrera.id %}selected{% endif %}>
-                                {{ carrera.nombre }}
+                                {{ carrera.codigo }} - {{ carrera.nombre }}
                             </option>
                             {% endfor %}
                         </select>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <label for="cuatrimestre" class="form-label">
                             <i class="fas fa-calendar"></i> Cuatrimestre
                         </label>
@@ -47,9 +94,21 @@
                             {% endfor %}
                         </select>
                     </div>
-                    <div class="col-md-4 d-flex align-items-end">
+                    <div class="col-md-3">
+                        <label class="form-label d-block">
+                            <i class="fas fa-user-clock"></i> Disponibilidad
+                        </label>
+                        <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" name="solo_disponibles" value="1" 
+                                   id="soloDisponibles" {% if solo_disponibles %}checked{% endif %}>
+                            <label class="form-check-label" for="soloDisponibles">
+                                Solo profesores con capacidad
+                            </label>
+                        </div>
+                    </div>
+                    <div class="col-md-3 d-flex align-items-end">
                         <button type="submit" class="btn btn-primary me-2">
-                            <i class="fas fa-filter"></i> Filtrar
+                            <i class="fas fa-search"></i> Aplicar
                         </button>
                         <a href="{{ url_for('asignacion_masiva_materias') }}" class="btn btn-outline-secondary">
                             <i class="fas fa-times"></i> Limpiar
@@ -67,7 +126,7 @@
                 <div class="card-body text-center">
                     <i class="fas fa-chalkboard-teacher fa-2x mb-2"></i>
                     <h4 class="mb-0">{{ profesores|length }}</h4>
-                    <small>Profesores</small>
+                    <small>Profesores Activos</small>
                 </div>
             </div>
         </div>
@@ -83,20 +142,18 @@
         <div class="col-md-3">
             <div class="card bg-info text-white">
                 <div class="card-body text-center">
-                    <i class="fas fa-check-circle fa-2x mb-2"></i>
-                    <h4 class="mb-0" id="contadorSeleccionadas">0</h4>
-                    <small>Asignaciones Seleccionadas</small>
+                    <i class="fas fa-edit fa-2x mb-2"></i>
+                    <h4 class="mb-0" id="contadorCambios">0</h4>
+                    <small>Cambios Pendientes</small>
                 </div>
             </div>
         </div>
         <div class="col-md-3">
-            <div class="card bg-warning text-white">
+            <div class="card bg-warning text-dark">
                 <div class="card-body text-center">
                     <i class="fas fa-link fa-2x mb-2"></i>
-                    <h4 class="mb-0" id="contadorActuales">
-                        {{ asignaciones_actuales.values() | map('length') | sum }}
-                    </h4>
-                    <small>Asignaciones Actuales</small>
+                    <h4 class="mb-0">{{ asignaciones_actuales.values() | map('length') | sum }}</h4>
+                    <small>Asignaciones Totales</small>
                 </div>
             </div>
         </div>
@@ -104,78 +161,106 @@
 
     {% if profesores and materias %}
     <!-- Formulario de asignación masiva -->
-    <form method="POST" action="{{ url_for('asignacion_masiva_materias') }}" id="formAsignacion">
+    <form method="POST" action="{{ url_for('asignacion_masiva_materias', carrera=filtro_carrera if filtro_carrera else '', cuatrimestre=filtro_cuatrimestre if filtro_cuatrimestre else '') }}" id="formAsignacion">
         <div class="card">
-            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">
-                    <i class="fas fa-table"></i> Matriz de Asignaciones
-                </h5>
-                <div>
-                    <button type="button" class="btn btn-sm btn-light me-2" onclick="seleccionarTodas()">
-                        <i class="fas fa-check-square"></i> Seleccionar Todas
-                    </button>
-                    <button type="button" class="btn btn-sm btn-outline-light me-2" onclick="limpiarSeleccion()">
-                        <i class="fas fa-times"></i> Limpiar Selección
-                    </button>
-                    <button type="submit" class="btn btn-sm btn-success" id="btnGuardar">
-                        <i class="fas fa-save"></i> Guardar Asignaciones
-                    </button>
+            <div class="card-header bg-dark text-white">
+                <div class="row align-items-center">
+                    <div class="col-md-6">
+                        <h5 class="mb-0">
+                            <i class="fas fa-table"></i> Matriz de Asignaciones
+                        </h5>
+                    </div>
+                    <div class="col-md-6 text-end">
+                        <div class="btn-group btn-group-sm me-2" role="group">
+                            <button type="button" class="btn btn-outline-light" onclick="seleccionarTodas()" title="Seleccionar todas">
+                                <i class="fas fa-check-double"></i> Todo
+                            </button>
+                            <button type="button" class="btn btn-outline-light" onclick="limpiarSeleccion()" title="Limpiar selección">
+                                <i class="fas fa-eraser"></i> Limpiar
+                            </button>
+                            <button type="button" class="btn btn-outline-light" onclick="invertirSeleccion()" title="Invertir selección">
+                                <i class="fas fa-exchange-alt"></i> Invertir
+                            </button>
+                        </div>
+                        <button type="submit" class="btn btn-sm btn-success" id="btnGuardar">
+                            <i class="fas fa-save"></i> Guardar Cambios
+                        </button>
+                    </div>
                 </div>
             </div>
             <div class="card-body p-0">
-                <div class="table-responsive" style="max-height: 600px;">
+                <div class="table-responsive" style="max-height: 70vh; overflow: auto;">
                     <table class="table table-bordered table-hover table-sm mb-0">
                         <thead class="table-dark" style="position: sticky; top: 0; z-index: 10;">
                             <tr>
-                                <th style="position: sticky; left: 0; background-color: #212529; z-index: 11; min-width: 200px;">
-                                    Profesor
+                                <th style="position: sticky; left: 0; background-color: #212529; z-index: 11; min-width: 250px;">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <span>Profesor</span>
+                                        <button type="button" class="btn btn-xs btn-outline-light" onclick="seleccionarColumna(-1)" title="Seleccionar/Deseleccionar todos los profesores">
+                                            <i class="fas fa-check"></i>
+                                        </button>
+                                    </div>
                                 </th>
                                 {% for materia in materias %}
-                                <th class="text-center" style="min-width: 150px;">
-                                    <small>
-                                        <strong>C{{ materia.cuatrimestre }}: {{ materia.codigo }}</strong><br>
-                                        {{ materia.nombre }}
-                                    </small>
+                                <th class="text-center" style="min-width: 180px; vertical-align: middle;">
+                                    <div class="d-flex flex-column align-items-center">
+                                        <button type="button" class="btn btn-xs btn-outline-light mb-1" onclick="seleccionarColumna({{ loop.index0 }})" title="Asignar esta materia a todos">
+                                            <i class="fas fa-check"></i>
+                                        </button>
+                                        <small>
+                                            <strong class="text-warning">C{{ materia.cuatrimestre }}</strong><br>
+                                            <span class="badge bg-secondary">{{ materia.codigo }}</span><br>
+                                            {{ materia.nombre[:30] }}{% if materia.nombre|length > 30 %}...{% endif %}<br>
+                                            <span class="text-muted">{{ materia.creditos }} créditos</span>
+                                        </small>
+                                    </div>
                                 </th>
                                 {% endfor %}
                             </tr>
                         </thead>
                         <tbody>
                             {% for profesor in profesores %}
-                            <tr>
-                                <td style="position: sticky; left: 0; background-color: white; z-index: 5;">
-                                    <strong>{{ profesor.get_nombre_completo() }}</strong><br>
-                                    <small class="text-muted">
-                                        {{ profesor.email }}<br>
-                                        <span class="badge bg-secondary">{{ profesor.get_tipo_profesor_display() }}</span>
-                                    </small>
+                            {% set carga = cargas_profesores[profesor.id] %}
+                            <tr data-profesor-id="{{ profesor.id }}">
+                                <td style="position: sticky; left: 0; background-color: #fff; z-index: 5; border-right: 2px solid #dee2e6;">
+                                    <div class="d-flex justify-content-between align-items-start">
+                                        <div class="flex-grow-1">
+                                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                                <strong>{{ profesor.get_nombre_completo() }}</strong>
+                                                <button type="button" class="btn btn-xs btn-outline-secondary" onclick="seleccionarFila({{ profesor.id }})" title="Seleccionar todas las materias para este profesor">
+                                                    <i class="fas fa-check"></i>
+                                                </button>
+                                            </div>
+                                            <small class="text-muted d-block">{{ profesor.email }}</small>
+                                            <div class="mt-1">
+                                                <span class="badge {% if profesor.rol == 'profesor_completo' %}bg-primary{% else %}bg-info{% endif %}">
+                                                    {{ profesor.get_tipo_profesor_display() }}
+                                                </span>
+                                                <span class="badge bg-{{ carga.color }}" title="Carga actual: {{ carga.total_horas }} horas">
+                                                    {{ carga.total_horas }}h / {{ carga.limite_maximo }}h
+                                                </span>
+                                            </div>
+                                            <div class="progress mt-1" style="height: 5px;">
+                                                <div class="progress-bar bg-{{ carga.color }}" role="progressbar" 
+                                                     style="width: {{ carga.porcentaje }}%"></div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </td>
                                 {% for materia in materias %}
-                                <td class="text-center align-middle">
+                                <td class="text-center align-middle p-2" style="background-color: {% if materia.id in asignaciones_actuales.get(profesor.id, []) %}#e7f3ff{% else %}#fff{% endif %};">
                                     {% set esta_asignada = materia.id in asignaciones_actuales.get(profesor.id, []) %}
-                                    
-                                    <!-- Siempre mostrar checkbox para asignar o desasignar -->
                                     <div class="form-check d-flex justify-content-center">
-                                        {% if esta_asignada %}
-                                        <!-- Ya asignada - checkbox marcado con clase especial -->
                                         <input type="checkbox" 
-                                               class="form-check-input asignacion-checkbox asignacion-actual" 
+                                               class="form-check-input asignacion-checkbox {% if esta_asignada %}asignacion-actual{% else %}asignacion-nueva{% endif %}" 
                                                name="asignaciones[]" 
                                                value="{{ profesor.id }}-{{ materia.id }}"
-                                               data-accion="desasignar"
+                                               data-profesor="{{ profesor.id }}"
+                                               data-materia="{{ materia.id }}"
+                                               data-columna="{{ loop.index0 }}"
                                                onchange="actualizarContador()"
-                                               checked
-                                               style="cursor: pointer; transform: scale(1.3);">
-                                        {% else %}
-                                        <!-- No asignada - checkbox vacío -->
-                                        <input type="checkbox" 
-                                               class="form-check-input asignacion-checkbox asignacion-nueva" 
-                                               name="asignaciones[]" 
-                                               value="{{ profesor.id }}-{{ materia.id }}"
-                                               data-accion="asignar"
-                                               onchange="actualizarContador()"
-                                               style="cursor: pointer; transform: scale(1.3);">
-                                        {% endif %}
+                                               {% if esta_asignada %}checked{% endif %}
+                                               style="cursor: pointer; transform: scale(1.5);">
                                     </div>
                                 </td>
                                 {% endfor %}
@@ -186,22 +271,21 @@
                 </div>
             </div>
             <div class="card-footer">
-                <div class="row">
-                    <div class="col-md-6">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
                         <p class="mb-0">
                             <i class="fas fa-info-circle text-info"></i> 
                             <strong>Leyenda:</strong>
-                            <span class="ms-2">
-                                <input type="checkbox" checked disabled class="me-1"> Asignada (desmarcar para quitar)
-                            </span>
-                            <span class="ms-2">
-                                <input type="checkbox" disabled class="me-1"> Sin asignar (marcar para asignar)
-                            </span>
+                            <span class="badge bg-primary ms-2">TC = Tiempo Completo</span>
+                            <span class="badge bg-info ms-1">PA = Profesor Asignatura</span>
+                            <span class="badge bg-success ms-2">Carga Adecuada</span>
+                            <span class="badge bg-warning ms-1">Carga Alta</span>
+                            <span class="badge bg-danger ms-1">Sobrecarga</span>
                         </p>
                     </div>
-                    <div class="col-md-6 text-end">
+                    <div class="col-md-4 text-end">
                         <button type="submit" class="btn btn-success btn-lg">
-                            <i class="fas fa-save"></i> Guardar Cambios (<span id="contadorSeleccionadasBtn">0</span> modificaciones)
+                            <i class="fas fa-save"></i> Guardar Todos los Cambios
                         </button>
                     </div>
                 </div>
@@ -209,183 +293,205 @@
         </div>
     </form>
     {% else %}
-    <!-- Sin resultados -->
+    <!-- Sin datos -->
     <div class="alert alert-warning">
-        <i class="fas fa-exclamation-triangle"></i> 
-        No hay profesores o materias disponibles con los filtros seleccionados.
+        <i class="fas fa-exclamation-triangle"></i>
+        No hay profesores o materias para mostrar con los filtros seleccionados.
         {% if filtro_carrera or filtro_cuatrimestre %}
         <a href="{{ url_for('asignacion_masiva_materias') }}" class="alert-link">Limpiar filtros</a>
         {% endif %}
     </div>
     {% endif %}
+</div>
 
-    <!-- Ayuda -->
-    <div class="card mt-4">
-        <div class="card-header bg-light">
-            <h5 class="mb-0"><i class="fas fa-question-circle"></i> Ayuda</h5>
-        </div>
-        <div class="card-body">
-            <h6>¿Cómo usar esta herramienta?</h6>
-            <ol>
-                <li><strong>Filtra por carrera y/o cuatrimestre</strong> para reducir la cantidad de materias mostradas</li>
-                <li><strong>Revisa la matriz de asignaciones:</strong>
-                    <ul>
-                        <li>Las filas representan profesores</li>
-                        <li>Las columnas muestran las materias con su código y nombre completo</li>
-                        <li>Checkbox <span class="badge bg-success">verde</span> marcado = materia ya asignada</li>
-                        <li>Checkbox vacío = materia sin asignar</li>
-                    </ul>
-                </li>
-                <li><strong>Realiza cambios:</strong>
-                    <ul>
-                        <li><strong>Para asignar:</strong> Marca el checkbox vacío</li>
-                        <li><strong>Para desasignar:</strong> Desmarca el checkbox verde</li>
-                        <li>Los checkboxes desmarcados se mostrarán en <span class="badge bg-danger">rojo</span> para indicar desasignación</li>
-                    </ul>
-                </li>
-                <li><strong>Haz clic en "Guardar Cambios"</strong> para aplicar las modificaciones</li>
-            </ol>
-            
-            <div class="alert alert-info mb-0 mt-3">
-                <i class="fas fa-lightbulb"></i> <strong>Consejos:</strong>
-                <ul class="mb-0 mt-2">
-                    <li><strong>"Seleccionar Todas":</strong> Marca todos los checkboxes (asigna todas las materias a todos los profesores)</li>
-                    <li><strong>"Limpiar Selección":</strong> Restaura al estado original (cancela todos los cambios)</li>
-                    <li><strong>Códigos de color:</strong> 
-                        <span class="badge bg-success">Verde</span> = Asignada, 
-                        <span class="badge bg-primary">Azul</span> = Nueva asignación, 
-                        <span class="badge bg-danger">Rojo</span> = Se va a desasignar
-                    </li>
+<!-- Modal de Ayuda -->
+<div class="modal fade" id="ayudaModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title"><i class="fas fa-question-circle"></i> Guía de Uso Rápido</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <h6><i class="fas fa-keyboard"></i> Acciones Rápidas</h6>
+                <ul>
+                    <li><strong>Seleccionar fila completa:</strong> Click en el botón <i class="fas fa-check"></i> junto al nombre del profesor</li>
+                    <li><strong>Seleccionar columna completa:</strong> Click en el botón <i class="fas fa-check"></i> en el encabezado de la materia</li>
+                    <li><strong>Auto-asignar:</strong> Distribuye automáticamente todas las materias de la carrera entre los profesores disponibles</li>
                 </ul>
+                
+                <h6 class="mt-3"><i class="fas fa-file-import"></i> Importación Masiva</h6>
+                <p>Para asignar cientos de materias de una vez:</p>
+                <ol>
+                    <li>Haz clic en "Importar desde CSV"</li>
+                    <li>Descarga la plantilla de ejemplo</li>
+                    <li>Complétala con los emails de profesores y códigos de materias</li>
+                    <li>Sube el archivo y las asignaciones se aplicarán automáticamente</li>
+                </ol>
+                
+                <h6 class="mt-3"><i class="fas fa-lightbulb"></i> Consejos</h6>
+                <ul>
+                    <li>Usa los filtros para trabajar con subconjuntos manejables (por carrera o cuatrimestre)</li>
+                    <li>La barra de carga muestra la disponibilidad de cada profesor</li>
+                    <li>Exporta las asignaciones actuales para tener un respaldo antes de hacer cambios masivos</li>
+                    <li>Los colores de fondo azul indican materias ya asignadas</li>
+                </ul>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
             </div>
         </div>
     </div>
 </div>
 
 <script>
-    // Actualizar contador de asignaciones seleccionadas
-    function actualizarContador() {
-        // Contar nuevas asignaciones (checkboxes marcados que son nuevos)
-        const nuevasAsignaciones = document.querySelectorAll('.asignacion-nueva:checked');
-        
-        // Contar desasignaciones (checkboxes desmarcados que eran asignaciones actuales)
-        const desasignaciones = document.querySelectorAll('.asignacion-actual:not(:checked)');
-        
-        const totalCambios = nuevasAsignaciones.length + desasignaciones.length;
-        
-        document.getElementById('contadorSeleccionadas').textContent = totalCambios;
-        document.getElementById('contadorSeleccionadasBtn').textContent = totalCambios;
-        
-        // Actualizar estado del botón
-        const btnGuardar = document.getElementById('btnGuardar');
-        if (totalCambios > 0) {
-            btnGuardar.disabled = false;
+// Estado inicial de asignaciones
+const asignacionesOriginales = new Set();
+{% for profesor_id, materias_ids in asignaciones_actuales.items() %}
+    {% for materia_id in materias_ids %}
+        asignacionesOriginales.add('{{ profesor_id }}-{{ materia_id }}');
+    {% endfor %}
+{% endfor %}
+
+function actualizarContador() {
+    const checkboxes = document.querySelectorAll('.asignacion-checkbox');
+    const asignacionesActuales = new Set();
+    
+    checkboxes.forEach(cb => {
+        if (cb.checked) {
+            asignacionesActuales.add(cb.value);
+        }
+    });
+    
+    // Calcular cambios
+    let cambios = 0;
+    
+    // Nuevas asignaciones
+    asignacionesActuales.forEach(valor => {
+        if (!asignacionesOriginales.has(valor)) {
+            cambios++;
+        }
+    });
+    
+    // Asignaciones eliminadas
+    asignacionesOriginales.forEach(valor => {
+        if (!asignacionesActuales.has(valor)) {
+            cambios++;
+        }
+    });
+    
+    document.getElementById('contadorCambios').textContent = cambios;
+}
+
+function seleccionarTodas() {
+    document.querySelectorAll('.asignacion-checkbox').forEach(cb => {
+        cb.checked = true;
+    });
+    actualizarContador();
+}
+
+function limpiarSeleccion() {
+    document.querySelectorAll('.asignacion-checkbox').forEach(cb => {
+        cb.checked = false;
+    });
+    actualizarContador();
+}
+
+function invertirSeleccion() {
+    document.querySelectorAll('.asignacion-checkbox').forEach(cb => {
+        cb.checked = !cb.checked;
+    });
+    actualizarContador();
+}
+
+function seleccionarFila(profesorId) {
+    const checkboxes = document.querySelectorAll(`[data-profesor="${profesorId}"]`);
+    const todosSeleccionados = Array.from(checkboxes).every(cb => cb.checked);
+    
+    checkboxes.forEach(cb => {
+        cb.checked = !todosSeleccionados;
+    });
+    
+    actualizarContador();
+}
+
+function seleccionarColumna(columnaIndex) {
+    const checkboxes = columnaIndex === -1 
+        ? document.querySelectorAll('.asignacion-checkbox')
+        : document.querySelectorAll(`[data-columna="${columnaIndex}"]`);
+    
+    const todosSeleccionados = Array.from(checkboxes).every(cb => cb.checked);
+    
+    checkboxes.forEach(cb => {
+        cb.checked = !todosSeleccionados;
+    });
+    
+    actualizarContador();
+}
+
+function autoAsignarCarrera() {
+    if (!confirm('¿Deseas auto-asignar todas las materias de esta carrera a los profesores disponibles? Esta acción distribuirá equitativamente las materias.')) {
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('carrera_id', {{ filtro_carrera if filtro_carrera else 0 }});
+    {% if filtro_cuatrimestre %}
+    formData.append('cuatrimestre', {{ filtro_cuatrimestre }});
+    {% endif %}
+    
+    fetch('{{ url_for("auto_asignar_por_carrera") }}', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.exito) {
+            alert(data.mensaje);
+            location.reload();
         } else {
-            btnGuardar.disabled = true;
+            alert('Error: ' + data.mensaje);
         }
-    }
-    
-    // Seleccionar todas las asignaciones disponibles
-    function seleccionarTodas() {
-        const checkboxes = document.querySelectorAll('.asignacion-checkbox');
-        checkboxes.forEach(cb => {
-            cb.checked = true;
-        });
-        actualizarContador();
-    }
-    
-    // Limpiar todas las selecciones (volver al estado original)
-    function limpiarSeleccion() {
-        // Marcar solo las que eran asignaciones actuales
-        const checkboxes = document.querySelectorAll('.asignacion-checkbox');
-        checkboxes.forEach(cb => {
-            if (cb.classList.contains('asignacion-actual')) {
-                cb.checked = true;
-            } else {
-                cb.checked = false;
-            }
-        });
-        actualizarContador();
-    }
-    
-    // Confirmar antes de guardar
-    document.getElementById('formAsignacion').addEventListener('submit', function(e) {
-        const nuevasAsignaciones = document.querySelectorAll('.asignacion-nueva:checked').length;
-        const desasignaciones = document.querySelectorAll('.asignacion-actual:not(:checked)').length;
-        const totalCambios = nuevasAsignaciones + desasignaciones;
-        
-        if (totalCambios === 0) {
-            e.preventDefault();
-            alert('No has realizado ningún cambio.');
-            return false;
-        }
-        
-        let mensaje = '¿Estás seguro de realizar estos cambios?\n\n';
-        if (nuevasAsignaciones > 0) {
-            mensaje += `✓ ${nuevasAsignaciones} nueva(s) asignación(es)\n`;
-        }
-        if (desasignaciones > 0) {
-            mensaje += `✗ ${desasignaciones} desasignación(es)\n`;
-        }
-        
-        if (!confirm(mensaje)) {
-            e.preventDefault();
-            return false;
-        }
+    })
+    .catch(error => {
+        alert('Error al realizar la auto-asignación: ' + error);
     });
-    
-    // Inicializar contador al cargar la página
-    document.addEventListener('DOMContentLoaded', function() {
-        actualizarContador();
-    });
+}
+
+// Confirmar antes de salir si hay cambios sin guardar
+window.addEventListener('beforeunload', function (e) {
+    const cambios = parseInt(document.getElementById('contadorCambios').textContent);
+    if (cambios > 0) {
+        e.preventDefault();
+        e.returnValue = '';
+    }
+});
+
+// Inicializar contador al cargar
+document.addEventListener('DOMContentLoaded', function() {
+    actualizarContador();
+});
 </script>
 
 <style>
-    /* Estilos para la tabla con scroll horizontal */
-    .table-responsive {
-        overflow-x: auto;
-        overflow-y: auto;
-    }
-    
-    /* Fijar primera columna al hacer scroll horizontal */
-    th:first-child,
-    td:first-child {
-        position: sticky;
-        left: 0;
-        z-index: 5;
-    }
-    
-    /* Mejorar hover en las filas */
-    tbody tr:hover {
-        background-color: #f8f9fa;
-    }
-    
-    /* Mejorar visibilidad de los checkboxes */
-    .asignacion-checkbox:hover {
-        transform: scale(1.4);
-    }
-    
-    /* Estilo para checkboxes de asignaciones actuales (verdes) */
-    .asignacion-actual:checked {
-        background-color: #28a745;
-        border-color: #28a745;
-    }
-    
-    /* Estilo para checkboxes de nuevas asignaciones */
-    .asignacion-nueva:checked {
-        background-color: #007bff;
-        border-color: #007bff;
-    }
-    
-    /* Estilo para asignaciones actuales que se van a desasignar (rojas) */
-    .asignacion-actual:not(:checked) {
-        background-color: #dc3545;
-        border-color: #dc3545;
-    }
-    
-    /* Texto en encabezados */
-    thead th {
-        white-space: normal;
-    }
+.asignacion-checkbox:checked {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+}
+
+.asignacion-actual:checked {
+    background-color: #198754;
+    border-color: #198754;
+}
+
+.table-hover tbody tr:hover {
+    background-color: rgba(0, 123, 255, 0.05);
+}
+
+.btn-xs {
+    padding: 0.1rem 0.3rem;
+    font-size: 0.75rem;
+}
 </style>
+
 {% endblock %}
