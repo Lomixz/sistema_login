@@ -197,12 +197,13 @@ def cambiar_password_obligatorio():
 # ==========================================
 # FUNCIÓN CENTRAL PARA PROCESAR HORARIOS
 # ==========================================
-def procesar_horarios(agrupar_por='profesor', carrera_id=None):
+def procesar_horarios(agrupar_por='profesor', carrera_id=None, incluir_ids=False):
     """
     Función centralizada para obtener y procesar los horarios académicos.
     
     :param agrupar_por: 'profesor' o 'grupo'. Define cómo se agruparán los datos.
     :param carrera_id: Opcional. Si se provee un ID, filtra los horarios para esa carrera.
+    :param incluir_ids: Si True, incluye los IDs de los horarios para acciones
     :return: Un diccionario con los horarios organizados.
     """
     
@@ -238,11 +239,17 @@ def procesar_horarios(agrupar_por='profesor', carrera_id=None):
         # Lógica para agrupar por PROFESOR
         if agrupar_por == 'profesor':
             clave_agrupacion = a.profesor.get_nombre_completo()
-            info_clase_html = (
-                f"{a.materia.nombre}<br>"
-                f"<small class='text-muted'>{a.materia.codigo}</small><br>"
-                f"{a.get_hora_inicio_str()} - {a.get_hora_fin_str()}"
-            )
+            if incluir_ids:
+                info_clase_html = {
+                    'id': a.id,
+                    'html': f"{a.materia.nombre}<br><small class='text-muted'>{a.materia.codigo}</small><br>{a.get_hora_inicio_str()} - {a.get_hora_fin_str()}"
+                }
+            else:
+                info_clase_html = (
+                    f"{a.materia.nombre}<br>"
+                    f"<small class='text-muted'>{a.materia.codigo}</small><br>"
+                    f"{a.get_hora_inicio_str()} - {a.get_hora_fin_str()}"
+                )
 
         # Lógica para agrupar por GRUPO
         elif agrupar_por == 'grupo':
@@ -250,11 +257,18 @@ def procesar_horarios(agrupar_por='profesor', carrera_id=None):
             if grupos_materia:
                 grupo = grupos_materia[0] # Tomamos el primer grupo asociado
                 clave_agrupacion = grupo.codigo
-                info_clase_html = (
-                    f"{a.materia.nombre}<br>"
-                    f"Prof: {a.profesor.get_nombre_completo()}<br>"
-                    f"{a.get_hora_inicio_str()} - {a.get_hora_fin_str()}"
-                )
+                if incluir_ids:
+                    info_clase_html = {
+                        'id': a.id,
+                        'grupo_id': grupo.id,
+                        'html': f"{a.materia.nombre}<br>Prof: {a.profesor.get_nombre_completo()}<br>{a.get_hora_inicio_str()} - {a.get_hora_fin_str()}"
+                    }
+                else:
+                    info_clase_html = (
+                        f"{a.materia.nombre}<br>"
+                        f"Prof: {a.profesor.get_nombre_completo()}<br>"
+                        f"{a.get_hora_inicio_str()} - {a.get_hora_fin_str()}"
+                    )
 
         # Si encontramos una clave válida, la agregamos al diccionario
         if clave_agrupacion:
@@ -3376,6 +3390,93 @@ def gestionar_horarios_academicos():
                          materias_unicas=materias_unicas,
                          filtro_carrera=carrera_id)
 
+@app.route('/admin/horarios-academicos/generar-masivo', methods=['GET', 'POST'])
+@login_required
+def generar_horarios_masivo():
+    """Generar horarios para múltiples grupos simultáneamente (equilibrado)"""
+    if not current_user.is_admin():
+        flash('No tienes permisos para acceder a esta página.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    from generador_horarios import generar_horarios_masivos
+    from datetime import datetime
+    
+    # Obtener todos los grupos activos organizados por carrera y cuatrimestre
+    grupos = Grupo.query.filter_by(activo=True).order_by(
+        Grupo.carrera_id, 
+        Grupo.cuatrimestre, 
+        Grupo.codigo
+    ).all()
+    
+    # Organizar grupos por carrera y cuatrimestre
+    grupos_organizados = {}
+    for grupo in grupos:
+        carrera_nombre = grupo.get_carrera_nombre()
+        if carrera_nombre not in grupos_organizados:
+            grupos_organizados[carrera_nombre] = {}
+        
+        cuatri = grupo.cuatrimestre
+        if cuatri not in grupos_organizados[carrera_nombre]:
+            grupos_organizados[carrera_nombre][cuatri] = []
+        
+        grupos_organizados[carrera_nombre][cuatri].append(grupo)
+    
+    resultado = None
+    
+    if request.method == 'POST':
+        # Obtener grupos seleccionados
+        grupos_ids = request.form.getlist('grupos_ids[]')
+        
+        if not grupos_ids:
+            flash('❌ Debe seleccionar al menos un grupo', 'error')
+            return render_template('admin/generar_horarios_masivo.html', 
+                                 grupos_organizados=grupos_organizados,
+                                 resultado=resultado)
+        
+        # Convertir a enteros
+        grupos_ids = [int(gid) for gid in grupos_ids]
+        
+        # Obtener configuración
+        version_nombre = request.form.get('version_nombre', '').strip()
+        dias_config = request.form.get('dias_semana', 'lunes_viernes')
+        
+        if not version_nombre:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            version_nombre = f"Generación Masiva {timestamp}"
+        
+        # Configurar días
+        if dias_config == 'lunes_viernes':
+            dias_semana = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes']
+        elif dias_config == 'lunes_sabado':
+            dias_semana = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado']
+        else:
+            dias_semana = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes']
+        
+        # Calcular período académico
+        año_actual = datetime.now().year
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        periodo_academico = f"{año_actual}-{año_actual}_{timestamp}"
+        
+        # Generar horarios masivos
+        print(f"🚀 Iniciando generación masiva para {len(grupos_ids)} grupos...")
+        
+        resultado = generar_horarios_masivos(
+            grupos_ids=grupos_ids,
+            periodo_academico=periodo_academico,
+            version_nombre=version_nombre,
+            creado_por=current_user.id,
+            dias_semana=dias_semana
+        )
+        
+        if resultado['exito']:
+            flash(f"✅ {resultado['mensaje']}", 'success')
+        else:
+            flash(f"❌ {resultado['mensaje']}", 'error')
+    
+    return render_template('admin/generar_horarios_masivo.html',
+                         grupos_organizados=grupos_organizados,
+                         resultado=resultado)
+
 @app.route('/admin/horarios-academicos/generar', methods=['GET', 'POST'])
 @login_required
 def generar_horarios_academicos():
@@ -3529,6 +3630,63 @@ def eliminar_horario_academico(id):
     return render_template('admin/eliminar_horario_academico.html',
                          form=form,
                          horario_academico=horario_academico)
+
+@app.route('/admin/horarios-academicos/grupo/<int:grupo_id>/eliminar', methods=['GET'])
+@login_required
+def eliminar_horarios_grupo(grupo_id):
+    """Eliminar todos los horarios de un grupo"""
+    if not current_user.is_admin():
+        flash('No tienes permisos para acceder a esta página.', 'error')
+        return redirect(url_for('dashboard'))
+
+    grupo = Grupo.query.get_or_404(grupo_id)
+    
+    # Obtener los IDs de todas las materias del grupo
+    materias_ids = [materia.id for materia in grupo.materias]
+    
+    if materias_ids:
+        # Eliminar todos los horarios de esas materias
+        num_eliminados = HorarioAcademico.query.filter(
+            HorarioAcademico.materia_id.in_(materias_ids)
+        ).delete(synchronize_session=False)
+        
+        db.session.commit()
+        
+        flash(f'Se eliminaron {num_eliminados} horarios del grupo {grupo.codigo} exitosamente.', 'success')
+    else:
+        flash(f'El grupo {grupo.codigo} no tiene materias asignadas.', 'info')
+    
+    return redirect(url_for('gestionar_horarios_academicos'))
+
+@app.route('/admin/horarios-academicos/<int:id>/eliminar-rapido', methods=['POST'])
+@login_required
+def eliminar_horario_rapido(id):
+    """Eliminar un horario académico de forma rápida (sin confirmación de formulario)"""
+    if not current_user.is_admin():
+        flash('No tienes permisos para realizar esta acción.', 'error')
+        return redirect(url_for('dashboard'))
+
+    horario_academico = HorarioAcademico.query.get_or_404(id)
+    
+    # Guardar información para el mensaje
+    materia_nombre = horario_academico.get_materia_nombre()
+    dia = horario_academico.get_dia_display()
+    hora = f"{horario_academico.get_hora_inicio_str()} - {horario_academico.get_hora_fin_str()}"
+    
+    # Eliminar el horario
+    db.session.delete(horario_academico)
+    db.session.commit()
+    
+    flash(f'Horario eliminado: {materia_nombre} - {dia} {hora}', 'success')
+    
+    # Determinar de dónde vino la solicitud para redirigir correctamente
+    referer = request.referrer
+    if referer and 'grupos' in referer:
+        return redirect(url_for('admin_horario_grupos'))
+    elif referer and 'profesores' in referer:
+        return redirect(url_for('admin_horario_profesores'))
+    else:
+        return redirect(url_for('gestionar_horarios_academicos'))
 
 # ==========================================
 # GESTIÓN DE USUARIOS (SOLO ADMINISTRADORES)
@@ -4744,7 +4902,7 @@ def obtener_dia_correcto(dia_semana):
 def admin_horario_profesores():
     if not current_user.is_admin(): abort(403)
     
-    horarios_data = procesar_horarios(agrupar_por='profesor')
+    horarios_data = procesar_horarios(agrupar_por='profesor', incluir_ids=True)
     return render_template('admin/admin_horario_profesores.html', horarios_data=horarios_data)
 
 @app.route('/admin/horarios/grupos')
@@ -4752,7 +4910,7 @@ def admin_horario_profesores():
 def admin_horario_grupos():
     if not current_user.is_admin(): abort(403)
 
-    horarios_data = procesar_horarios(agrupar_por='grupo')
+    horarios_data = procesar_horarios(agrupar_por='grupo', incluir_ids=True)
     return render_template('admin/admin_horario_grupos.html', horarios_data=horarios_data)
 
 # ==========================================

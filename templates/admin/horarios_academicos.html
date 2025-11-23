@@ -20,10 +20,16 @@
                         <i class="fas fa-arrow-left me-1"></i>
                         Regresar al Dashboard
                     </a>
-                    <a href="{{ url_for('generar_horarios_academicos') }}" class="btn btn-primary">
-                        <i class="fas fa-plus me-1"></i>
-                        Generar Horarios
-                    </a>
+                    <div class="btn-group" role="group">
+                        <a href="{{ url_for('generar_horarios_academicos') }}" class="btn btn-outline-primary">
+                            <i class="fas fa-user me-1"></i>
+                            Generar Individual
+                        </a>
+                        <a href="{{ url_for('generar_horarios_masivo') }}" class="btn btn-primary">
+                            <i class="fas fa-rocket me-1"></i>
+                            Generar Masivo
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>
@@ -177,16 +183,29 @@
                                 <div id="collapse{{ grupo.id }}" class="accordion-collapse collapse" 
                                      aria-labelledby="heading{{ grupo.id }}" data-bs-parent="#accordionGrupos">
                                     <div class="accordion-body">
-                                        <div class="table-responsive">
-                                            <!-- Mostrar versión si existe -->
-                                            {% if horarios and horarios[0].version_nombre %}
-                                            <div class="alert alert-light border-start border-primary border-4 mb-3">
-                                                <i class="fas fa-tag me-2 text-primary"></i>
-                                                <strong>Versión:</strong> {{ horarios[0].version_nombre }}
-                                                <small class="text-muted ms-2">({{ horarios[0].periodo_academico }})</small>
+                                        <!-- Barra de acciones del grupo -->
+                                        <div class="d-flex justify-content-between align-items-center mb-3">
+                                            <div>
+                                                <!-- Mostrar versión si existe -->
+                                                {% if horarios and horarios[0].version_nombre %}
+                                                <div class="d-inline-block">
+                                                    <i class="fas fa-tag me-2 text-primary"></i>
+                                                    <strong>Versión:</strong> {{ horarios[0].version_nombre }}
+                                                    <small class="text-muted ms-2">({{ horarios[0].periodo_academico }})</small>
+                                                </div>
+                                                {% endif %}
                                             </div>
-                                            {% endif %}
-                                            
+                                            <div>
+                                                <a href="{{ url_for('eliminar_horarios_grupo', grupo_id=grupo.id) }}"
+                                                   class="btn btn-sm btn-danger"
+                                                   onclick="return confirm('¿Está seguro de que desea eliminar TODOS los horarios de este grupo ({{ grupo.codigo }})?')">
+                                                    <i class="fas fa-trash-alt me-1"></i>
+                                                    Eliminar Todos los Horarios
+                                                </a>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="table-responsive">
                                             <table class="table table-sm table-striped table-hover">
                                                 <thead class="table-dark">
                                                     <tr>

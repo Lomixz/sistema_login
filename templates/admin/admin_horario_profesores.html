@@ -43,7 +43,18 @@
                             {% for dia_semana in ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'] %}
                             <td>
                                 {% for clase in dias[dia_semana] %}
-                                    <div class="clase-item p-2 mb-1 border rounded bg-light small">{{ clase | safe }}</div>
+                                    {% if clase is mapping %}
+                                        <div class="clase-item p-2 mb-1 border rounded bg-light small position-relative">
+                                            {{ clase.html | safe }}
+                                            <form method="POST" action="{{ url_for('eliminar_horario_rapido', id=clase.id) }}" class="d-inline" onsubmit="return confirm('¿Eliminar este horario?');">
+                                                <button type="submit" class="btn btn-sm btn-danger position-absolute top-0 end-0 m-1" style="padding: 0.1rem 0.3rem; font-size: 0.7rem;">
+                                                    <i class="fas fa-times"></i>
+                                                </button>
+                                            </form>
+                                        </div>
+                                    {% else %}
+                                        <div class="clase-item p-2 mb-1 border rounded bg-light small">{{ clase | safe }}</div>
+                                    {% endif %}
                                 {% endfor %}
                             </td>
                             {% endfor %}

@@ -36,22 +36,48 @@
                     </thead>
                     <tbody id="horariosTableBody">
                         {% for grupo, dias in horarios_data.items() %}
+                        {% set grupo_id = namespace(value=None) %}
                         <tr class="schedule-row">
                             <td class="row-name"><strong>{{ grupo }}</strong></td>
                              {% for dia_semana in ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'] %}
                             <td>
                                 {% for clase in dias[dia_semana] %}
-                                    <div class="clase-item p-2 mb-1 border rounded bg-light small">{{ clase | safe }}</div>
+                                    {% if clase is mapping %}
+                                        {% if clase.grupo_id and not grupo_id.value %}
+                                            {% set grupo_id.value = clase.grupo_id %}
+                                        {% endif %}
+                                        <div class="clase-item p-2 mb-1 border rounded bg-light small position-relative">
+                                            {{ clase.html | safe }}
+                                            <form method="POST" action="{{ url_for('eliminar_horario_rapido', id=clase.id) }}" class="d-inline" onsubmit="return confirm('¿Eliminar este horario?');">
+                                                <button type="submit" class="btn btn-sm btn-danger position-absolute top-0 end-0 m-1" style="padding: 0.1rem 0.3rem; font-size: 0.7rem;">
+                                                    <i class="fas fa-times"></i>
+                                                </button>
+                                            </form>
+                                        </div>
+                                    {% else %}
+                                        <div class="clase-item p-2 mb-1 border rounded bg-light small">{{ clase | safe }}</div>
+                                    {% endif %}
                                 {% endfor %}
                             </td>
                             {% endfor %}
                             <td>
-                                <a href="{{ url_for('exportar_horario_individual_excel', nombre_grupo=grupo) }}" 
-                                   class="btn btn-sm btn-outline-success" 
-                                   data-bs-toggle="tooltip" 
-                                   title="Exportar horario de {{ grupo }} a Excel">
-                                    <i class="fas fa-file-excel"></i>
-                                </a>
+                                <div class="btn-group-vertical btn-group-sm" role="group">
+                                    <a href="{{ url_for('exportar_horario_individual_excel', nombre_grupo=grupo) }}" 
+                                       class="btn btn-outline-success mb-1" 
+                                       data-bs-toggle="tooltip" 
+                                       title="Exportar a Excel">
+                                        <i class="fas fa-file-excel"></i>
+                                    </a>
+                                    {% if grupo_id.value %}
+                                    <a href="{{ url_for('eliminar_horarios_grupo', grupo_id=grupo_id.value) }}"
+                                       class="btn btn-outline-danger"
+                                       data-bs-toggle="tooltip"
+                                       title="Eliminar todos los horarios"
+                                       onclick="return confirm('¿Eliminar TODOS los horarios del grupo {{ grupo }}?');">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </a>
+                                    {% endif %}
+                                </div>
                             </td>
                         </tr>
                         {% else %}
