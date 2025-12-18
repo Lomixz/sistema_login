@@ -117,17 +117,8 @@ class RegistrationForm(FlaskForm):
             elif self.rol.data == 'jefe_carrera':
                 raise ValidationError('Los jefes de carrera deben seleccionar al menos una carrera.')
         
-        # Validar que no haya otro jefe de carrera para las carreras seleccionadas
-        if self.rol.data == 'jefe_carrera' and carrera.data:
-            for carrera_id in carrera.data:
-                existing_jefe = User.query.filter(
-                    User.rol == 'jefe_carrera',
-                    User.carreras.any(id=int(carrera_id)),
-                    User.activo == True
-                ).first()
-                if existing_jefe:
-                    carrera_obj = Carrera.query.get(int(carrera_id))
-                    raise ValidationError(f'Ya existe un jefe de carrera para {carrera_obj.nombre if carrera_obj else "esta carrera"}. Contacte al administrador.')
+        # Nota: Ahora permitimos que múltiples jefes puedan estar en la misma carrera
+        # y un jefe puede estar en múltiples carreras
     
     def get_final_rol(self):
         """Obtener el rol final basado en la selección"""
@@ -209,28 +200,28 @@ class CarreraForm(FlaskForm):
     ])
     
     jefe_carrera_id = SelectField('Jefe de Carrera', 
-                                 choices=[('', 'Sin asignar')],
+                                 choices=[(0, 'Sin asignar')],
                                  validators=[Optional()],
-                                 coerce=lambda x: int(x) if x and x.isdigit() else None)
+                                 coerce=int)
     
     submit = SubmitField('Guardar Carrera')
     
     def __init__(self, *args, **kwargs):
         super(CarreraForm, self).__init__(*args, **kwargs)
-        # Cargar los usuarios que pueden ser jefes de carrera (profesores y jefes de carrera)
         try:
+            # Cargar SOLO usuarios que son jefes de carrera
             jefes_disponibles = User.query.filter(
-                User.rol.in_(['profesor', 'jefe_carrera']),
+                User.rol == 'jefe_carrera',
                 User.activo == True
             ).order_by(User.nombre, User.apellido).all()
             
-            self.jefe_carrera_id.choices = [('', 'Sin asignar')] + [
-                (str(user.id), f"{user.nombre} {user.apellido} - {user.email}")
+            self.jefe_carrera_id.choices = [(0, 'Sin asignar')] + [
+                (user.id, f"{user.nombre} {user.apellido} - {user.email}")
                 for user in jefes_disponibles
             ]
         except Exception as e:
             print(f"Error cargando opciones de jefe de carrera: {e}")
-            self.jefe_carrera_id.choices = [('', 'Sin asignar')]
+            self.jefe_carrera_id.choices = [(0, 'Sin asignar')]
     
     def validate_codigo(self, codigo):
         """Validar que el código no esté duplicado"""
@@ -718,9 +709,8 @@ class AgregarUsuarioForm(FlaskForm):
         ('profesor_asignatura', 'Profesor por Asignatura')
     ])
 
-    carrera = SelectField('Carrera (Jefe de Carrera)', validators=[Optional()])
-    
-    carreras = SelectMultipleField('Carreras (Profesores)', coerce=int, validators=[Optional()])
+    # Ahora tanto jefes de carrera como profesores usan el mismo campo de múltiples carreras
+    carreras = SelectMultipleField('Carreras', coerce=int, validators=[Optional()])
 
     activo = BooleanField('Usuario Activo', default=True)
 
@@ -730,11 +720,6 @@ class AgregarUsuarioForm(FlaskForm):
         super(AgregarUsuarioForm, self).__init__(*args, **kwargs)
         # Llenar opciones de carreras
         carreras_activas = Carrera.query.filter_by(activa=True).order_by(Carrera.nombre).all()
-        
-        self.carrera.choices = [('', 'Seleccione una carrera')] + [
-            (str(c.id), f"{c.codigo} - {c.nombre}")
-            for c in carreras_activas
-        ]
         
         self.carreras.choices = [
             (c.id, f"{c.codigo} - {c.nombre}")
@@ -765,26 +750,12 @@ class AgregarUsuarioForm(FlaskForm):
         if self.rol.data == 'profesor' and not tipo_profesor.data:
             raise ValidationError('Debe seleccionar el tipo de profesor.')
 
-    def validate_carrera(self, carrera):
-        """Validar carrera si se seleccionó jefe de carrera como rol"""
-        if self.rol.data == 'jefe_carrera' and not carrera.data:
-            raise ValidationError('Los jefes de carrera deben seleccionar una carrera.')
-            
-        # Validar que no haya otro jefe de carrera para la misma carrera
-        if self.rol.data == 'jefe_carrera' and carrera.data:
-            existing_jefe = User.query.filter(
-                User.rol == 'jefe_carrera',
-                User.carrera_id == int(carrera.data),
-                User.activo == True
-            ).first()
-            if existing_jefe:
-                carrera_obj = Carrera.query.get(int(carrera.data))
-                raise ValidationError(f'Ya existe un jefe de carrera para {carrera_obj.nombre if carrera_obj else "esta carrera"}.')
-
     def validate_carreras(self, carreras):
-        """Validar carreras si se seleccionó profesor como rol"""
+        """Validar carreras si se seleccionó profesor o jefe de carrera como rol"""
         if self.rol.data == 'profesor' and (not carreras.data or len(carreras.data) == 0):
             raise ValidationError('Los profesores deben seleccionar al menos una carrera.')
+        if self.rol.data == 'jefe_carrera' and (not carreras.data or len(carreras.data) == 0):
+            raise ValidationError('Los jefes de carrera deben seleccionar al menos una carrera.')
             
     def get_final_rol(self):
         """Obtener el rol final considerando el tipo de profesor"""
@@ -853,9 +824,8 @@ class EditarUsuarioForm(FlaskForm):
         ('profesor_asignatura', 'Profesor por Asignatura')
     ])
 
-    carrera = SelectField('Carrera (Jefe de Carrera)', validators=[Optional()])
-    
-    carreras = SelectMultipleField('Carreras (Profesores)', coerce=int, validators=[Optional()])
+    # Ahora tanto jefes de carrera como profesores usan el mismo campo de múltiples carreras
+    carreras = SelectMultipleField('Carreras', coerce=int, validators=[Optional()])
 
     activo = BooleanField('Usuario Activo')
 
@@ -866,10 +836,6 @@ class EditarUsuarioForm(FlaskForm):
         self.user = user
         # Llenar opciones de carreras
         carreras_activas = Carrera.query.filter_by(activa=True).order_by(Carrera.nombre).all()
-        self.carrera.choices = [('', 'Seleccione una carrera')] + [
-            (str(c.id), f"{c.codigo} - {c.nombre}")
-            for c in carreras_activas
-        ]
         self.carreras.choices = [
             (c.id, f"{c.codigo} - {c.nombre}")
             for c in carreras_activas
@@ -899,26 +865,12 @@ class EditarUsuarioForm(FlaskForm):
         if self.rol.data == 'profesor' and not tipo_profesor.data:
             raise ValidationError('Debe seleccionar el tipo de profesor.')
 
-    def validate_carrera(self, carrera):
-        """Validar carrera si se seleccionó jefe de carrera como rol"""
-        if self.rol.data == 'jefe_carrera' and not carrera.data:
-            raise ValidationError('Los jefes de carrera deben seleccionar una carrera.')
-        
-        # Validar que no haya otro jefe de carrera para la misma carrera (excepto el usuario actual)
-        if self.rol.data == 'jefe_carrera' and carrera.data:
-            existing_jefe = User.query.filter(
-                User.rol == 'jefe_carrera',
-                User.carrera_id == int(carrera.data),
-                User.activo == True
-            ).first()
-            if existing_jefe and existing_jefe.id != self.user.id:
-                carrera_obj = Carrera.query.get(int(carrera.data))
-                raise ValidationError(f'Ya existe un jefe de carrera para {carrera_obj.nombre if carrera_obj else "esta carrera"}.')
-
     def validate_carreras(self, carreras):
-        """Validar carreras si se seleccionó profesor como rol"""
+        """Validar carreras si se seleccionó profesor o jefe de carrera como rol"""
         if self.rol.data == 'profesor' and (not carreras.data or len(carreras.data) == 0):
             raise ValidationError('Los profesores deben seleccionar al menos una carrera.')
+        if self.rol.data == 'jefe_carrera' and (not carreras.data or len(carreras.data) == 0):
+            raise ValidationError('Los jefes de carrera deben seleccionar al menos una carrera.')
 
     def get_final_rol(self):
         """Obtener el rol final considerando el tipo de profesor"""

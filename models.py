@@ -177,49 +177,83 @@ class User(UserMixin, db.Model):
         if self.is_admin():
             return True
         if self.is_jefe_carrera():
-            return self.carrera_id == carrera_id
+            # Ahora verificamos en la relación many-to-many
+            return any(c.id == carrera_id for c in self.carreras)
         return False
     
     def get_profesores_carrera(self):
-        """Obtener profesores de la carrera del jefe (solo para jefes de carrera)"""
-        if not self.is_jefe_carrera() or not self.carrera_id:
+        """Obtener profesores de las carreras del jefe (solo para jefes de carrera)"""
+        if not self.is_jefe_carrera() or not self.carreras:
             return []
-        # Incluir tanto profesores asignados a la carrera como jefes de carrera
+        
+        # Obtener IDs de todas las carreras del jefe
+        carrera_ids = [c.id for c in self.carreras]
+        
+        # Incluir tanto profesores asignados a las carreras como jefes de carrera
         profesores = User.query.filter(
-            User.carreras.any(id=self.carrera_id),
+            User.carreras.any(Carrera.id.in_(carrera_ids)),
             User.rol.in_(['profesor_completo', 'profesor_asignatura']),
             User.activo == True
         ).all()
         
+        # Incluir otros jefes de carrera de las mismas carreras
         jefes = User.query.filter(
-            User.carrera_id == self.carrera_id,
+            User.carreras.any(Carrera.id.in_(carrera_ids)),
             User.rol == 'jefe_carrera',
             User.activo == True
         ).all()
         
-        return profesores + jefes
+        # Combinar y eliminar duplicados
+        todos = list(set(profesores + jefes))
+        return todos
     
     def get_materias_carrera(self):
-        """Obtener materias de la carrera del jefe (solo para jefes de carrera)"""
-        if not self.is_jefe_carrera() or not self.carrera_id:
+        """Obtener materias de las carreras del jefe (solo para jefes de carrera)"""
+        if not self.is_jefe_carrera() or not self.carreras:
             return []
         from models import Materia
+        carrera_ids = [c.id for c in self.carreras]
         return Materia.query.filter(
-            Materia.carrera_id == self.carrera_id,
+            Materia.carrera_id.in_(carrera_ids),
             Materia.activa == True
         ).all()
     
     def get_horarios_academicos_carrera(self):
-        """Obtener horarios académicos de la carrera del jefe (solo para jefes de carrera)"""
-        if not self.is_jefe_carrera() or not self.carrera_id:
+        """Obtener horarios académicos de las carreras del jefe (solo para jefes de carrera)"""
+        if not self.is_jefe_carrera() or not self.carreras:
             return []
         from models import HorarioAcademico
+        carrera_ids = [c.id for c in self.carreras]
         # Para profesores: usar relación many-to-many
         return HorarioAcademico.query.join(User, HorarioAcademico.profesor_id == User.id).filter(
-            User.carreras.any(id=self.carrera_id),
+            User.carreras.any(Carrera.id.in_(carrera_ids)),
             User.rol.in_(['profesor_completo', 'profesor_asignatura']),
             User.activo == True
         ).all()
+    
+    def get_carreras_jefe_ids(self):
+        """Obtener IDs de las carreras del jefe (helper)"""
+        if not self.is_jefe_carrera():
+            return []
+        return [c.id for c in self.carreras]
+    
+    @property
+    def primera_carrera(self):
+        """Obtener la primera carrera asignada (para compatibilidad con código legacy)"""
+        if self.carreras:
+            return self.carreras[0]
+        return None
+    
+    @property
+    def primera_carrera_id(self):
+        """Obtener el ID de la primera carrera (para compatibilidad con código legacy)"""
+        if self.carreras:
+            return self.carreras[0].id
+        return None
+    
+    def tiene_carrera(self, carrera_id):
+        """Verificar si el usuario tiene acceso a una carrera específica"""
+        return any(c.id == carrera_id for c in self.carreras)
     
     def __repr__(self):
         return f'<User {self.username}>'
@@ -306,9 +340,9 @@ class Carrera(db.Model):
             User.activo == True
         ).count()
         
-        # Para jefes de carrera asignados a esta carrera: usar carrera_id
+        # Para jefes de carrera asignados a esta carrera: ahora también usa many-to-many
         jefes_carrera = User.query.filter(
-            User.carrera_id == self.id,
+            User.carreras.any(id=self.id),
             User.rol == 'jefe_carrera',
             User.activo == True
         ).count()
@@ -332,21 +366,33 @@ class Carrera(db.Model):
         ).count()
     
     def get_jefe_carrera(self):
-        """Obtener el jefe de carrera asignado a esta carrera"""
+        """Obtener el primer jefe de carrera asignado a esta carrera"""
         return User.query.filter(
-            User.carrera_id == self.id,
+            User.carreras.any(id=self.id),
             User.rol == 'jefe_carrera',
             User.activo == True
         ).first()
+    
+    def get_jefes_carrera(self):
+        """Obtener todos los jefes de carrera asignados a esta carrera"""
+        return User.query.filter(
+            User.carreras.any(id=self.id),
+            User.rol == 'jefe_carrera',
+            User.activo == True
+        ).all()
     
     def tiene_jefe_carrera(self):
         """Verificar si la carrera tiene un jefe asignado"""
         return self.get_jefe_carrera() is not None
     
     def get_jefe_carrera_nombre(self):
-        """Obtener el nombre del jefe de carrera"""
-        jefe = self.get_jefe_carrera()
-        return jefe.get_nombre_completo() if jefe else 'Sin asignar'
+        """Obtener el nombre del jefe de carrera (o jefes si hay varios)"""
+        jefes = self.get_jefes_carrera()
+        if not jefes:
+            return 'Sin asignar'
+        if len(jefes) == 1:
+            return jefes[0].get_nombre_completo()
+        return ', '.join([j.get_nombre_completo() for j in jefes])
     
     def __repr__(self):
         return f'<Carrera {self.codigo} - {self.nombre}>'

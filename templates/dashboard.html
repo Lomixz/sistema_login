@@ -123,16 +123,18 @@
                         <td><strong>Rol:</strong></td>
                         <td>{{ current_user.get_rol_display() }}</td>
                     </tr>
-                    {% if current_user.is_jefe_carrera() and current_user.carrera %}
+                    {% if current_user.is_jefe_carrera() and current_user.carreras %}
                     <tr>
-                        <td><strong>Carrera:</strong></td>
+                        <td><strong>Carrera(s):</strong></td>
                         <td>
-                            <span class="badge bg-success">{{ current_user.carrera.nombre }}</span>
+                            {% for carrera in current_user.carreras %}
+                            <span class="badge bg-success me-1">{{ carrera.nombre }}</span>
+                            {% endfor %}
                         </td>
                     </tr>
                     <tr>
-                        <td><strong>Código:</strong></td>
-                        <td>{{ current_user.carrera.codigo }}</td>
+                        <td><strong>Código(s):</strong></td>
+                        <td>{{ current_user.carreras|map(attribute='codigo')|join(', ') }}</td>
                     </tr>
                     {% endif %}
                     {% if current_user.is_profesor() %}

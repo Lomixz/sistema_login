@@ -190,25 +190,8 @@
                         </div>
 
                         <div class="row">
-                            <div class="col-md-12 mb-3" id="carreraJefeDiv" style="display: none;">
-                                {{ form.carrera.label(class="form-label") }}
-                                <div class="input-group">
-                                    <span class="input-group-text">
-                                        <i class="fas fa-graduation-cap"></i>
-                                    </span>
-                                    {{ form.carrera(class="form-select", id="carreraSelect") }}
-                                </div>
-                                {% if form.carrera.errors %}
-                                    {% for error in form.carrera.errors %}
-                                        <div class="text-danger small">{{ error }}</div>
-                                    {% endfor %}
-                                {% endif %}
-                                <div class="form-text">
-                                    Obligatorio para jefes de carrera
-                                </div>
-                            </div>
-
-                            <div class="col-md-12 mb-3" id="carrerasProfesorDiv" style="display: none;">
+                            <!-- Campo de carreras para jefes de carrera y profesores -->
+                            <div class="col-md-12 mb-3" id="carrerasDiv" style="display: none;">
                                 {{ form.carreras.label(class="form-label") }}
                                 <div class="input-group">
                                     <span class="input-group-text">
@@ -221,7 +204,7 @@
                                         <div class="text-danger small">{{ error }}</div>
                                     {% endfor %}
                                 {% endif %}
-                                <div class="form-text">
+                                <div class="form-text" id="carrerasHelpText">
                                     Mantén presionada la tecla Ctrl (Windows/Linux) o Cmd (Mac) para seleccionar múltiples carreras
                                 </div>
                             </div>
@@ -420,8 +403,8 @@ document.addEventListener('DOMContentLoaded', function() {
     function toggleFields() {
         const rolSelect = document.getElementById('rolSelect');
         const tipoProfesorDiv = document.getElementById('tipoProfesorDiv');
-        const carreraJefeDiv = document.getElementById('carreraJefeDiv');
-        const carrerasProfesorDiv = document.getElementById('carrerasProfesorDiv');
+        const carrerasDiv = document.getElementById('carrerasDiv');
+        const carrerasHelpText = document.getElementById('carrerasHelpText');
         const disponibilidadDiv = document.getElementById('disponibilidadDiv');
         const tipoProfesorSelect = document.getElementById('tipoProfesorSelect');
 
@@ -431,8 +414,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Ocultar todos por defecto
         tipoProfesorDiv.style.display = 'none';
-        carreraJefeDiv.style.display = 'none';
-        carrerasProfesorDiv.style.display = 'none';
+        if (carrerasDiv) carrerasDiv.style.display = 'none';
         if (disponibilidadDiv) disponibilidadDiv.style.display = 'none';
 
         if (selectedRol === 'profesor') {
@@ -441,12 +423,15 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Si hay un tipo de profesor seleccionado, mostrar carreras y disponibilidad
             if (tipoProfesorSelect && tipoProfesorSelect.value) {
-                carrerasProfesorDiv.style.display = 'block';
+                if (carrerasDiv) carrerasDiv.style.display = 'block';
                 if (disponibilidadDiv) disponibilidadDiv.style.display = 'block';
             }
         } else if (selectedRol === 'jefe_carrera') {
-            // Mostrar selector de carrera única para jefe
-            carreraJefeDiv.style.display = 'block';
+            // Mostrar selector de carreras (ahora múltiples) para jefe
+            if (carrerasDiv) carrerasDiv.style.display = 'block';
+            if (carrerasHelpText) {
+                carrerasHelpText.textContent = 'Seleccione una o más carreras que el jefe de carrera podrá gestionar';
+            }
         }
     }
 
