@@ -696,12 +696,21 @@ class AgregarUsuarioForm(FlaskForm):
         EqualTo('password', message='Las contraseñas deben coincidir')
     ])
 
-    rol = SelectField('Rol', choices=[
+    # Ahora roles es un campo de selección múltiple para permitir múltiples roles
+    roles_seleccionados = SelectMultipleField('Roles', choices=[
+        ('admin', 'Administrador'),
+        ('jefe_carrera', 'Jefe de Carrera'),
+        ('profesor_completo', 'Profesor de Tiempo Completo'),
+        ('profesor_asignatura', 'Profesor por Asignatura')
+    ], validators=[DataRequired(message='Debe seleccionar al menos un rol')])
+
+    # Campo legacy para compatibilidad (se mantiene oculto o se establece automáticamente)
+    rol = SelectField('Rol Principal', choices=[
         ('', 'Seleccione un rol'),
         ('admin', 'Administrador'),
         ('jefe_carrera', 'Jefe de Carrera'),
         ('profesor', 'Profesor')
-    ], validators=[DataRequired(message='Debe seleccionar un rol')])
+    ], validators=[Optional()])
 
     tipo_profesor = SelectField('Tipo de Profesor', choices=[
         ('', 'Seleccione tipo de profesor'),
@@ -745,23 +754,36 @@ class AgregarUsuarioForm(FlaskForm):
         if user:
             raise ValidationError('Este email ya está registrado. Elija uno diferente.')
 
-    def validate_tipo_profesor(self, tipo_profesor):
-        """Validar tipo de profesor si se seleccionó profesor como rol"""
-        if self.rol.data == 'profesor' and not tipo_profesor.data:
-            raise ValidationError('Debe seleccionar el tipo de profesor.')
-
     def validate_carreras(self, carreras):
-        """Validar carreras si se seleccionó profesor o jefe de carrera como rol"""
-        if self.rol.data == 'profesor' and (not carreras.data or len(carreras.data) == 0):
-            raise ValidationError('Los profesores deben seleccionar al menos una carrera.')
-        if self.rol.data == 'jefe_carrera' and (not carreras.data or len(carreras.data) == 0):
-            raise ValidationError('Los jefes de carrera deben seleccionar al menos una carrera.')
+        """Validar carreras si se seleccionó un rol que requiera carrera"""
+        roles = self.roles_seleccionados.data or []
+        requiere_carrera = any(r in roles for r in ['jefe_carrera', 'profesor_completo', 'profesor_asignatura'])
+        
+        if requiere_carrera and (not carreras.data or len(carreras.data) == 0):
+            raise ValidationError('Los profesores y jefes de carrera deben seleccionar al menos una carrera.')
             
-    def get_final_rol(self):
-        """Obtener el rol final considerando el tipo de profesor"""
-        if self.rol.data == 'profesor' and self.tipo_profesor.data:
-            return self.tipo_profesor.data
-        return self.rol.data
+    def get_roles_list(self):
+        """Obtener la lista de roles seleccionados"""
+        return self.roles_seleccionados.data or []
+    
+    def get_primary_rol(self):
+        """Obtener el rol principal para el campo legacy"""
+        roles = self.get_roles_list()
+        # Prioridad: admin > jefe_carrera > profesor_completo > profesor_asignatura
+        if 'admin' in roles:
+            return 'admin'
+        elif 'jefe_carrera' in roles:
+            return 'jefe_carrera'
+        elif 'profesor_completo' in roles:
+            return 'profesor_completo'
+        elif 'profesor_asignatura' in roles:
+            return 'profesor_asignatura'
+        return roles[0] if roles else ''
+    
+    def is_profesor(self):
+        """Verificar si alguno de los roles seleccionados es de profesor"""
+        roles = self.get_roles_list()
+        return 'profesor_completo' in roles or 'profesor_asignatura' in roles
     
     def get_disponibilidades_data(self):
         """Obtener los datos de disponibilidad del formulario"""
@@ -818,6 +840,14 @@ class EditarUsuarioForm(FlaskForm):
         ('profesor', 'Profesor')
     ], validators=[DataRequired(message='Debe seleccionar un rol')])
 
+    # Ahora roles es un campo de selección múltiple para permitir múltiples roles
+    roles_seleccionados = SelectMultipleField('Roles', choices=[
+        ('admin', 'Administrador'),
+        ('jefe_carrera', 'Jefe de Carrera'),
+        ('profesor_completo', 'Profesor de Tiempo Completo'),
+        ('profesor_asignatura', 'Profesor por Asignatura')
+    ], validators=[DataRequired(message='Debe seleccionar al menos un rol')])
+
     tipo_profesor = SelectField('Tipo de Profesor', choices=[
         ('', 'Seleccione tipo de profesor'),
         ('profesor_completo', 'Profesor de Tiempo Completo'),
@@ -860,23 +890,36 @@ class EditarUsuarioForm(FlaskForm):
         if user and user.id != self.user.id:
             raise ValidationError('Este email ya está registrado. Elija uno diferente.')
 
-    def validate_tipo_profesor(self, tipo_profesor):
-        """Validar tipo de profesor si se seleccionó profesor como rol"""
-        if self.rol.data == 'profesor' and not tipo_profesor.data:
-            raise ValidationError('Debe seleccionar el tipo de profesor.')
-
     def validate_carreras(self, carreras):
-        """Validar carreras si se seleccionó profesor o jefe de carrera como rol"""
-        if self.rol.data == 'profesor' and (not carreras.data or len(carreras.data) == 0):
-            raise ValidationError('Los profesores deben seleccionar al menos una carrera.')
-        if self.rol.data == 'jefe_carrera' and (not carreras.data or len(carreras.data) == 0):
-            raise ValidationError('Los jefes de carrera deben seleccionar al menos una carrera.')
-
-    def get_final_rol(self):
-        """Obtener el rol final considerando el tipo de profesor"""
-        if self.rol.data == 'profesor' and self.tipo_profesor.data:
-            return self.tipo_profesor.data
-        return self.rol.data
+        """Validar carreras si se seleccionó un rol que requiera carrera"""
+        roles = self.roles_seleccionados.data or []
+        requiere_carrera = any(r in roles for r in ['jefe_carrera', 'profesor_completo', 'profesor_asignatura'])
+        
+        if requiere_carrera and (not carreras.data or len(carreras.data) == 0):
+            raise ValidationError('Los profesores y jefes de carrera deben seleccionar al menos una carrera.')
+            
+    def get_roles_list(self):
+        """Obtener la lista de roles seleccionados"""
+        return self.roles_seleccionados.data or []
+    
+    def get_primary_rol(self):
+        """Obtener el rol principal para el campo legacy"""
+        roles = self.get_roles_list()
+        # Prioridad: admin > jefe_carrera > profesor_completo > profesor_asignatura
+        if 'admin' in roles:
+            return 'admin'
+        elif 'jefe_carrera' in roles:
+            return 'jefe_carrera'
+        elif 'profesor_completo' in roles:
+            return 'profesor_completo'
+        elif 'profesor_asignatura' in roles:
+            return 'profesor_asignatura'
+        return roles[0] if roles else ''
+    
+    def is_profesor(self):
+        """Verificar si alguno de los roles seleccionados es de profesor"""
+        roles = self.get_roles_list()
+        return 'profesor_completo' in roles or 'profesor_asignatura' in roles
     
     def get_disponibilidades_data(self):
         """Obtener los datos de disponibilidad del formulario"""

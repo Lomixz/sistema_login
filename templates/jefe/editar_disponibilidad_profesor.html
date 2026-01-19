@@ -241,10 +241,23 @@ function deselectAll() {
 }
 
 // Función para marcar/desmarcar un turno completo
+// MEJORADO: Selecciona un turno y deselecciona el otro
 function toggleTurno(turno) {
-    const checkboxes = document.querySelectorAll('.turno-' + turno);
-    const allChecked = Array.from(checkboxes).every(cb => cb.checked);
-    checkboxes.forEach(cb => cb.checked = !allChecked);
+    const checkboxesTurno = document.querySelectorAll('.turno-' + turno);
+    const otroTurno = turno === 'matutino' ? 'vespertino' : 'matutino';
+    const checkboxesOtroTurno = document.querySelectorAll('.turno-' + otroTurno);
+    
+    // Verificar si todos están seleccionados
+    const allChecked = Array.from(checkboxesTurno).every(cb => cb.checked);
+    
+    if (allChecked) {
+        // Si todos están marcados, desmarcar este turno
+        checkboxesTurno.forEach(cb => cb.checked = false);
+    } else {
+        // Marcar este turno y desmarcar el otro
+        checkboxesTurno.forEach(cb => cb.checked = true);
+        checkboxesOtroTurno.forEach(cb => cb.checked = false);
+    }
 }
 </script>
 

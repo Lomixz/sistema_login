@@ -260,7 +260,7 @@
                                                data-columna="{{ loop.index0 }}"
                                                onchange="actualizarContador()"
                                                {% if esta_asignada %}checked{% endif %}
-                                               style="cursor: pointer; transform: scale(1.5);">
+                                                   >
                                     </div>
                                 </td>
                                 {% endfor %}
@@ -479,6 +479,19 @@ document.addEventListener('DOMContentLoaded', function() {
     border-color: #0d6efd;
 }
 
+.asignacion-checkbox {
+    cursor: pointer;
+    transform: scale(1.3);
+    transform-origin: center;
+    display: inline-block;
+}
+
+.asignacion-checkbox:hover,
+.asignacion-checkbox:focus {
+    transform: scale(1.3);
+    box-shadow: 0 0 0 0.15rem rgba(13, 110, 253, 0.25);
+}
+
 .asignacion-actual:checked {
     background-color: #198754;
     border-color: #198754;
@@ -486,6 +499,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 .table-hover tbody tr:hover {
     background-color: rgba(0, 123, 255, 0.05);
+    transform: none;
 }
 
 .btn-xs {

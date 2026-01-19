@@ -24,6 +24,159 @@ grupo_materias = db.Table('grupo_materias',
     db.Column('materia_id', db.Integer, db.ForeignKey('materia.id'), primary_key=True)
 )
 
+# Tabla pivote para relación many-to-many entre usuarios y roles (NUEVO)
+user_roles = db.Table('user_roles',
+    db.Column('user_id', db.Integer, db.ForeignKey('user.id'), primary_key=True),
+    db.Column('role_id', db.Integer, db.ForeignKey('role.id'), primary_key=True),
+    db.Column('fecha_asignacion', db.DateTime, default=datetime.utcnow)
+)
+
+
+class Role(db.Model):
+    """Modelo para gestionar roles del sistema (múltiples roles por usuario)"""
+    id = db.Column(db.Integer, primary_key=True)
+    nombre = db.Column(db.String(50), unique=True, nullable=False)  # Ej: 'admin', 'jefe_carrera', 'profesor_completo'
+    descripcion = db.Column(db.String(200))
+    activo = db.Column(db.Boolean, default=True)
+    fecha_creacion = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Roles predefinidos del sistema
+    ADMIN = 'admin'
+    JEFE_CARRERA = 'jefe_carrera'
+    PROFESOR_COMPLETO = 'profesor_completo'
+    PROFESOR_ASIGNATURA = 'profesor_asignatura'
+    
+    ROLES_DISPLAY = {
+        'admin': 'Administrador',
+        'jefe_carrera': 'Jefe de Carrera',
+        'profesor_completo': 'Profesor de Tiempo Completo',
+        'profesor_asignatura': 'Profesor por Asignatura'
+    }
+    
+    def __init__(self, nombre, descripcion=None):
+        self.nombre = nombre
+        self.descripcion = descripcion or self.ROLES_DISPLAY.get(nombre, nombre)
+    
+    def get_display_name(self):
+        """Obtener nombre para mostrar"""
+        return self.ROLES_DISPLAY.get(self.nombre, self.nombre)
+    
+    @staticmethod
+    def get_all_roles():
+        """Obtener todos los roles disponibles"""
+        return Role.query.filter_by(activo=True).all()
+    
+    @staticmethod
+    def get_or_create(nombre):
+        """Obtener rol existente o crear uno nuevo"""
+        role = Role.query.filter_by(nombre=nombre).first()
+        if not role:
+            role = Role(nombre=nombre)
+            db.session.add(role)
+            db.session.flush()
+        return role
+    
+    def __repr__(self):
+        return f'<Role {self.nombre}>'
+
+
+class AsignacionProfesorGrupo(db.Model):
+    """
+    Modelo para la relación ternaria Profesor-Materia-Grupo.
+    Representa la asignación específica de un profesor a una materia EN un grupo concreto.
+    """
+    __tablename__ = 'asignacion_profesor_grupo'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    
+    # Relaciones principales (la terna)
+    profesor_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    materia_id = db.Column(db.Integer, db.ForeignKey('materia.id'), nullable=False)
+    grupo_id = db.Column(db.Integer, db.ForeignKey('grupo.id'), nullable=False)
+    
+    # Restricción: un profesor solo puede tener una materia asignada por grupo
+    __table_args__ = (
+        db.UniqueConstraint('profesor_id', 'materia_id', 'grupo_id', name='uq_profesor_materia_grupo'),
+    )
+    
+    # Información adicional
+    horas_semanales = db.Column(db.Integer, default=0)  # Horas para esta asignación específica
+    periodo_academico = db.Column(db.String(20))
+    notas = db.Column(db.Text)
+    
+    # Metadatos
+    activo = db.Column(db.Boolean, default=True)
+    fecha_creacion = db.Column(db.DateTime, default=datetime.utcnow)
+    creado_por = db.Column(db.Integer, db.ForeignKey('user.id'))
+    
+    # Relaciones
+    profesor = db.relationship('User', foreign_keys=[profesor_id], backref=db.backref('asignaciones_grupo', lazy='dynamic'))
+    materia = db.relationship('Materia', backref=db.backref('asignaciones_grupo', lazy='dynamic'))
+    grupo = db.relationship('Grupo', backref=db.backref('asignaciones_profesor', lazy='dynamic'))
+    creador = db.relationship('User', foreign_keys=[creado_por])
+    
+    def __init__(self, profesor_id, materia_id, grupo_id, horas_semanales=0, 
+                 periodo_academico=None, notas=None, creado_por=None):
+        self.profesor_id = profesor_id
+        self.materia_id = materia_id
+        self.grupo_id = grupo_id
+        self.horas_semanales = horas_semanales
+        self.periodo_academico = periodo_academico
+        self.notas = notas
+        self.creado_por = creado_por
+    
+    def get_profesor_nombre(self):
+        """Obtener nombre del profesor"""
+        return self.profesor.get_nombre_completo() if self.profesor else 'Sin profesor'
+    
+    def get_materia_nombre(self):
+        """Obtener nombre de la materia"""
+        return self.materia.nombre if self.materia else 'Sin materia'
+    
+    def get_grupo_codigo(self):
+        """Obtener código del grupo"""
+        return self.grupo.codigo if self.grupo else 'Sin grupo'
+    
+    def get_resumen(self):
+        """Obtener resumen de la asignación"""
+        return {
+            'profesor': self.get_profesor_nombre(),
+            'materia': self.get_materia_nombre(),
+            'grupo': self.get_grupo_codigo(),
+            'horas': self.horas_semanales,
+            'periodo': self.periodo_academico,
+            'activo': self.activo
+        }
+    
+    @staticmethod
+    def get_asignaciones_grupo(grupo_id):
+        """Obtener todas las asignaciones de un grupo"""
+        return AsignacionProfesorGrupo.query.filter_by(
+            grupo_id=grupo_id,
+            activo=True
+        ).all()
+    
+    @staticmethod
+    def get_asignaciones_profesor(profesor_id):
+        """Obtener todas las asignaciones de un profesor"""
+        return AsignacionProfesorGrupo.query.filter_by(
+            profesor_id=profesor_id,
+            activo=True
+        ).all()
+    
+    @staticmethod
+    def get_carga_horaria_profesor(profesor_id):
+        """Calcular carga horaria total de un profesor"""
+        asignaciones = AsignacionProfesorGrupo.query.filter_by(
+            profesor_id=profesor_id,
+            activo=True
+        ).all()
+        return sum(a.horas_semanales for a in asignaciones)
+    
+    def __repr__(self):
+        return f'<AsignacionProfesorGrupo {self.profesor_id}-{self.materia_id}-{self.grupo_id}>'
+
+
 class User(UserMixin, db.Model):
     """Modelo de usuario con diferentes roles"""
     id = db.Column(db.Integer, primary_key=True)
@@ -37,10 +190,13 @@ class User(UserMixin, db.Model):
     telefono = db.Column(db.String(20))
     imagen_perfil = db.Column(db.String(200))  # Ruta de la imagen de perfil
     
-    # Rol del usuario
+    # Rol del usuario (campo legacy - se mantendrá para compatibilidad)
     rol = db.Column(db.String(20), nullable=False)
     # Para profesores: especifica si es de tiempo completo o por asignatura
     tipo_profesor = db.Column(db.String(20))
+    
+    # NUEVO: Relación many-to-many con roles (múltiples roles por usuario)
+    roles = db.relationship('Role', secondary=user_roles, backref=db.backref('users', lazy='dynamic'))
     
     # Relación many-to-many con carreras (para profesores y jefes de carrera)
     carreras = db.relationship('Carrera', secondary=user_carreras, backref=db.backref('usuarios', lazy=True))
@@ -57,6 +213,52 @@ class User(UserMixin, db.Model):
     activo = db.Column(db.Boolean, default=True)
     requiere_cambio_password = db.Column(db.Boolean, default=False)  # Forzar cambio de contraseña
     password_temporal = db.Column(db.String(20))  # Almacenar contraseña temporal para mostrar al admin
+    
+    # ========== MÉTODOS PARA MÚLTIPLES ROLES (NUEVO) ==========
+    
+    def has_role(self, role_name):
+        """Verificar si el usuario tiene un rol específico (busca en roles y en campo legacy)"""
+        # Primero verificar en la relación many-to-many
+        if any(r.nombre == role_name for r in self.roles):
+            return True
+        # Fallback al campo legacy
+        return self.rol == role_name
+    
+    def has_any_role(self, role_names):
+        """Verificar si el usuario tiene alguno de los roles especificados"""
+        return any(self.has_role(role) for role in role_names)
+    
+    def add_role(self, role_name):
+        """Agregar un rol al usuario"""
+        role = Role.get_or_create(role_name)
+        if role not in self.roles:
+            self.roles.append(role)
+    
+    def remove_role(self, role_name):
+        """Remover un rol del usuario"""
+        role = Role.query.filter_by(nombre=role_name).first()
+        if role and role in self.roles:
+            self.roles.remove(role)
+    
+    def get_roles_list(self):
+        """Obtener lista de nombres de roles del usuario"""
+        # Combinar roles de la relación many-to-many con el campo legacy
+        roles_set = {r.nombre for r in self.roles}
+        if self.rol:
+            roles_set.add(self.rol)
+        return list(roles_set)
+    
+    def get_roles_display(self):
+        """Obtener nombres de roles para mostrar"""
+        roles = self.get_roles_list()
+        return [Role.ROLES_DISPLAY.get(r, r) for r in roles]
+    
+    def sync_legacy_role(self):
+        """Sincronizar el campo legacy 'rol' con la relación many-to-many"""
+        if self.rol:
+            self.add_role(self.rol)
+    
+    # ==========================================================
     
     def __init__(self, username, email, password, nombre, apellido, rol, telefono=None, tipo_profesor=None, carreras=None, imagen_perfil=None, carrera_id=None, requiere_cambio_password=False, password_temporal=None):
         self.username = username
@@ -97,34 +299,35 @@ class User(UserMixin, db.Model):
         return f"{self.nombre} {self.apellido}"
     
     def is_admin(self):
-        """Verificar si es administrador"""
-        return self.rol == 'admin'
+        """Verificar si es administrador (busca en roles many-to-many y campo legacy)"""
+        return self.has_role('admin')
     
     def is_jefe_carrera(self):
-        """Verificar si es jefe de carrera"""
-        return self.rol == 'jefe_carrera'
+        """Verificar si es jefe de carrera (busca en roles many-to-many y campo legacy)"""
+        return self.has_role('jefe_carrera')
     
     def is_profesor(self):
-        """Verificar si es profesor (cualquier tipo)"""
-        return self.rol in ['profesor_completo', 'profesor_asignatura']
+        """Verificar si es profesor (cualquier tipo) - busca en roles many-to-many y campo legacy"""
+        return self.has_any_role(['profesor_completo', 'profesor_asignatura'])
     
     def is_profesor_completo(self):
         """Verificar si es profesor de tiempo completo"""
-        return self.rol == 'profesor_completo'
+        return self.has_role('profesor_completo')
     
     def is_profesor_asignatura(self):
         """Verificar si es profesor por asignatura"""
-        return self.rol == 'profesor_asignatura'
+        return self.has_role('profesor_asignatura')
     
     def get_rol_display(self):
-        """Obtener nombre del rol para mostrar"""
-        roles = {
-            'admin': 'Administrador',
-            'jefe_carrera': 'Jefe de Carrera',
-            'profesor_completo': 'Profesor de Tiempo Completo',
-            'profesor_asignatura': 'Profesor por Asignatura'
-        }
-        return roles.get(self.rol, self.rol)
+        """Obtener nombre del rol para mostrar (ahora muestra todos los roles)"""
+        roles_list = self.get_roles_list()
+        if not roles_list:
+            return 'Sin rol asignado'
+        if len(roles_list) == 1:
+            return Role.ROLES_DISPLAY.get(roles_list[0], roles_list[0])
+        # Múltiples roles: mostrar todos
+        displays = [Role.ROLES_DISPLAY.get(r, r) for r in roles_list]
+        return ' + '.join(displays)
     
     def get_tipo_profesor_display(self):
         """Obtener tipo de profesor para mostrar"""
@@ -613,12 +816,12 @@ class Grupo(db.Model):
         self.codigo = self.generar_codigo()
     
     def generar_codigo(self):
-        """Generar código del grupo automáticamente: {numero}{turno}{carrera_codigo}{cuatrimestre}"""
+        """Generar código del grupo automáticamente: {cuatrimestre}{turno}{carrera_codigo}{numero_grupo}"""
         from models import Carrera
         carrera = Carrera.query.get(self.carrera_id)
         if carrera:
-            return f"{self.numero_grupo}{self.turno}{carrera.codigo}{self.cuatrimestre}"
-        return f"{self.numero_grupo}{self.turno}XX{self.cuatrimestre}"
+            return f"{self.cuatrimestre}{self.turno}{carrera.codigo}{self.numero_grupo}"
+        return f"{self.cuatrimestre}{self.turno}XX{self.numero_grupo}"
     
     def get_turno_display(self):
         """Obtener nombre completo del turno"""

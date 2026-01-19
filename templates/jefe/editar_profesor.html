@@ -117,6 +117,130 @@
                             </div>
                         </div>
                         
+                        <!-- Disponibilidad Horaria -->
+                        {% if profesor.is_profesor() %}
+                        <hr class="my-4">
+                        <h5 class="mb-3 text-primary">
+                            <i class="fas fa-calendar-check me-2"></i>
+                            Disponibilidad Horaria
+                        </h5>
+                        
+                        <!-- Botones de selección masiva -->
+                        <div class="mb-3">
+                            <div class="btn-group me-2" role="group">
+                                <button type="button" class="btn btn-outline-primary btn-sm" id="select-matutino">
+                                    <i class="fas fa-sun me-1"></i>
+                                    Todo Matutino
+                                </button>
+                                <button type="button" class="btn btn-outline-warning btn-sm" id="select-vespertino">
+                                    <i class="fas fa-moon me-1"></i>
+                                    Todo Vespertino
+                                </button>
+                                <button type="button" class="btn btn-outline-success btn-sm" id="select-todo">
+                                    <i class="fas fa-check-square me-1"></i>
+                                    Seleccionar Todo
+                                </button>
+                                <button type="button" class="btn btn-outline-danger btn-sm" id="deselect-todo">
+                                    <i class="fas fa-square me-1"></i>
+                                    Deseleccionar Todo
+                                </button>
+                            </div>
+                            <small class="text-muted">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Selecciona las horas en las que el profesor está disponible
+                            </small>
+                        </div>
+                        
+                        <!-- Tabla de horarios -->
+                        <div class="table-responsive mb-4">
+                            <table class="table table-bordered table-sm" id="horarios-table">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th class="text-center" style="width: 120px;">Horario</th>
+                                        <th class="text-center">Lunes</th>
+                                        <th class="text-center">Martes</th>
+                                        <th class="text-center">Miércoles</th>
+                                        <th class="text-center">Jueves</th>
+                                        <th class="text-center">Viernes</th>
+                                        <th class="text-center">Sábado</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% if horarios %}
+                                        {% for horario in horarios %}
+                                            {% if horario.turno == 'matutino' %}
+                                                <tr class="matutino-row">
+                                                    <td class="text-center fw-bold">
+                                                        {{ horario.nombre }}<br>
+                                                        <small class="text-muted">
+                                                            {% if horario.hora_inicio and horario.hora_fin %}
+                                                                {{ horario.hora_inicio.strftime('%H:%M') }} - {{ horario.hora_fin.strftime('%H:%M') }}
+                                                            {% else %}
+                                                                Horario no disponible
+                                                            {% endif %}
+                                                        </small>
+                                                    </td>
+                                                    {% set dias = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'] %}
+                                                    {% for dia in dias %}
+                                                        <td class="text-center">
+                                                            {% set field_name = 'disp_' + horario.id|string + '_' + dia %}
+                                                            {% set is_checked = disponibilidad_dict.get((horario.id, dia), False) %}
+                                                            <div class="form-check">
+                                                                <input type="checkbox" 
+                                                                       name="{{ field_name }}" 
+                                                                       value="True"
+                                                                       class="form-check-input disponibilidad-checkbox matutino-checkbox" 
+                                                                       {% if is_checked %}checked{% endif %}>
+                                                            </div>
+                                                        </td>
+                                                    {% endfor %}
+                                                </tr>
+                                            {% endif %}
+                                        {% endfor %}
+
+                                        {% for horario in horarios %}
+                                            {% if horario.turno == 'vespertino' %}
+                                                <tr class="vespertino-row">
+                                                    <td class="text-center fw-bold">
+                                                        {{ horario.nombre }}<br>
+                                                        <small class="text-muted">
+                                                            {% if horario.hora_inicio and horario.hora_fin %}
+                                                                {{ horario.hora_inicio.strftime('%H:%M') }} - {{ horario.hora_fin.strftime('%H:%M') }}
+                                                            {% else %}
+                                                                Horario no disponible
+                                                            {% endif %}
+                                                        </small>
+                                                    </td>
+                                                    {% set dias = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'] %}
+                                                    {% for dia in dias %}
+                                                        <td class="text-center">
+                                                            {% set field_name = 'disp_' + horario.id|string + '_' + dia %}
+                                                            {% set is_checked = disponibilidad_dict.get((horario.id, dia), False) %}
+                                                            <div class="form-check">
+                                                                <input type="checkbox" 
+                                                                       name="{{ field_name }}" 
+                                                                       value="True"
+                                                                       class="form-check-input disponibilidad-checkbox vespertino-checkbox" 
+                                                                       {% if is_checked %}checked{% endif %}>
+                                                            </div>
+                                                        </td>
+                                                    {% endfor %}
+                                                </tr>
+                                            {% endif %}
+                                        {% endfor %}
+                                    {% else %}
+                                        <tr>
+                                            <td colspan="7" class="text-center text-muted py-4">
+                                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                                No hay horarios configurados en el sistema. Contacte al administrador para configurar los horarios.
+                                            </td>
+                                        </tr>
+                                    {% endif %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% endif %}
+                        
                         <div class="form-group mt-4">
                             <button type="submit" class="btn btn-primary">
                                 <i class="fas fa-save"></i> Guardar Cambios
@@ -161,6 +285,80 @@ $(document).ready(function() {
     
     // Ejecutar cuando cambie el rol
     $('#rol').change(toggleTipoProfesor);
+    
+    // Funcionalidad de botones de selección masiva para disponibilidad
+    const selectMatutinoBtn = document.getElementById('select-matutino');
+    const selectVespertinoBtn = document.getElementById('select-vespertino');
+    const selectTodoBtn = document.getElementById('select-todo');
+    const deselectTodoBtn = document.getElementById('deselect-todo');
+
+    if (selectMatutinoBtn) {
+        selectMatutinoBtn.addEventListener('click', function() {
+            // Seleccionar SOLO matutino (7:00-14:00) y deseleccionar vespertino
+            const matutinoCheckboxes = document.querySelectorAll('.matutino-checkbox');
+            const vespertinoCheckboxes = document.querySelectorAll('.vespertino-checkbox');
+            matutinoCheckboxes.forEach(checkbox => {
+                checkbox.checked = true;
+            });
+            vespertinoCheckboxes.forEach(checkbox => {
+                checkbox.checked = false;
+            });
+        });
+    }
+
+    if (selectVespertinoBtn) {
+        selectVespertinoBtn.addEventListener('click', function() {
+            // Seleccionar SOLO vespertino (13:00-20:00) y deseleccionar matutino
+            const matutinoCheckboxes = document.querySelectorAll('.matutino-checkbox');
+            const vespertinoCheckboxes = document.querySelectorAll('.vespertino-checkbox');
+            vespertinoCheckboxes.forEach(checkbox => {
+                checkbox.checked = true;
+            });
+            matutinoCheckboxes.forEach(checkbox => {
+                checkbox.checked = false;
+            });
+        });
+    }
+
+    if (selectTodoBtn) {
+        selectTodoBtn.addEventListener('click', function() {
+            const allCheckboxes = document.querySelectorAll('.disponibilidad-checkbox');
+            allCheckboxes.forEach(checkbox => {
+                checkbox.checked = true;
+            });
+        });
+    }
+
+    if (deselectTodoBtn) {
+        deselectTodoBtn.addEventListener('click', function() {
+            const allCheckboxes = document.querySelectorAll('.disponibilidad-checkbox');
+            allCheckboxes.forEach(checkbox => {
+                checkbox.checked = false;
+            });
+        });
+    }
+
+    // Agregar funcionalidad visual para resaltar filas por turno
+    const matutinoRows = document.querySelectorAll('.matutino-row');
+    const vespertinoRows = document.querySelectorAll('.vespertino-row');
+
+    matutinoRows.forEach(row => {
+        row.addEventListener('mouseenter', function() {
+            this.style.backgroundColor = '#fff3cd';
+        });
+        row.addEventListener('mouseleave', function() {
+            this.style.backgroundColor = '';
+        });
+    });
+
+    vespertinoRows.forEach(row => {
+        row.addEventListener('mouseenter', function() {
+            this.style.backgroundColor = '#d1ecf1';
+        });
+        row.addEventListener('mouseleave', function() {
+            this.style.backgroundColor = '';
+        });
+    });
 });
 </script>
 

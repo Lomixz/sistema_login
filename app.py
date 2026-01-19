@@ -1,7 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file, make_response, abort
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from werkzeug.utils import secure_filename
-from models import db, User, Horario, Carrera, Materia, HorarioAcademico, DisponibilidadProfesor, Grupo, init_db, init_upload_dirs
+from models import db, User, Horario, Carrera, Materia, HorarioAcademico, DisponibilidadProfesor, Grupo, init_db, init_upload_dirs, AsignacionProfesorGrupo, Role
 from forms import (LoginForm, RegistrationForm, HorarioForm, EliminarHorarioForm, 
                    CarreraForm, ImportarProfesoresForm, FiltrarProfesoresForm, ExportarProfesoresForm,
                    MateriaForm, ImportarMateriasForm, FiltrarMateriasForm, ExportarMateriasForm,
@@ -249,22 +249,27 @@ def procesar_horarios(agrupar_por='profesor', carrera_id=None, incluir_ids=False
 
         # Lógica para agrupar por GRUPO
         elif agrupar_por == 'grupo':
-            grupos_materia = [g for g in a.materia.grupos if carrera_id is None or g.carrera_id == carrera_id]
-            if grupos_materia:
-                grupo = grupos_materia[0] # Tomamos el primer grupo asociado
-                clave_agrupacion = grupo.codigo
-                if incluir_ids:
-                    info_clase_html = {
-                        'id': a.id,
-                        'grupo_id': grupo.id,
-                        'html': f"{a.materia.nombre}<br>Prof: {a.profesor.get_nombre_completo()}<br>{a.get_hora_inicio_str()} - {a.get_hora_fin_str()}"
-                    }
-                else:
-                    info_clase_html = (
-                        f"{a.materia.nombre}<br>"
-                        f"Prof: {a.profesor.get_nombre_completo()}<br>"
-                        f"{a.get_hora_inicio_str()} - {a.get_hora_fin_str()}"
-                    )
+            # CORREGIDO: Usar el campo 'grupo' del HorarioAcademico en lugar de materia.grupos
+            grupo_codigo = a.grupo
+            
+            if grupo_codigo:
+                # Buscar el objeto Grupo por su código para filtrar por carrera si es necesario
+                grupo = Grupo.query.filter_by(codigo=grupo_codigo).first()
+                
+                if grupo and (carrera_id is None or grupo.carrera_id == carrera_id):
+                    clave_agrupacion = grupo_codigo
+                    if incluir_ids:
+                        info_clase_html = {
+                            'id': a.id,
+                            'grupo_id': grupo.id,
+                            'html': f"{a.materia.nombre}<br>Prof: {a.profesor.get_nombre_completo()}<br>{a.get_hora_inicio_str()} - {a.get_hora_fin_str()}"
+                        }
+                    else:
+                        info_clase_html = (
+                            f"{a.materia.nombre}<br>"
+                            f"Prof: {a.profesor.get_nombre_completo()}<br>"
+                            f"{a.get_hora_inicio_str()} - {a.get_hora_fin_str()}"
+                        )
 
         # Si encontramos una clave válida, la agregamos al diccionario
         if clave_agrupacion:
@@ -318,10 +323,9 @@ def procesar_horarios_formato_fda(carrera_id=None):
             }
         
         duracion_horas = (a.horario.hora_fin.hour - a.horario.hora_inicio.hour) + (a.horario.hora_fin.minute - a.horario.hora_inicio.minute) / 60.0
-        grupo_codigo = "N/A"
-        grupos_materia = [g for g in a.materia.grupos if carrera_id is None or g.carrera_id == carrera_id]
-        if grupos_materia:
-            grupo_codigo = grupos_materia[0].codigo
+        
+        # CORREGIDO: Usar el campo 'grupo' del HorarioAcademico directamente
+        grupo_codigo = a.grupo if a.grupo else "N/A"
 
         dia_correcto = dias_map.get(a.dia_semana.lower())
         if not dia_correcto: continue
@@ -506,7 +510,11 @@ def editar_profesor_jefe(id):
             flash('No tienes permisos para editar este jefe de carrera.', 'error')
             return redirect(url_for('gestionar_profesores_jefe'))
     
+    # Obtener horarios para mostrar en la tabla de disponibilidad
+    horarios = Horario.query.filter_by(activo=True).order_by(Horario.turno, Horario.orden).all()
+    
     form = EditarUsuarioForm(user=profesor)
+    
     if form.validate_on_submit():
         profesor.username = form.username.data
         profesor.nombre = form.nombre.data
@@ -515,6 +523,30 @@ def editar_profesor_jefe(id):
         profesor.telefono = form.telefono.data
         profesor.rol = form.rol.data
         profesor.activo = form.activo.data
+        
+        # Procesar disponibilidad horaria para profesores
+        if profesor.is_profesor():
+            # Desactivar disponibilidades anteriores (mantener historial)
+            DisponibilidadProfesor.query.filter_by(
+                profesor_id=profesor.id,
+                activo=True
+            ).update({'activo': False})
+            
+            # Crear nuevas disponibilidades basadas en el formulario
+            dias = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado']
+            for horario in horarios:
+                for dia in dias:
+                    field_name = f'disp_{horario.id}_{dia}'
+                    disponible = request.form.get(field_name) == 'True'
+                    
+                    nueva_disponibilidad = DisponibilidadProfesor(
+                        profesor_id=profesor.id,
+                        horario_id=horario.id,
+                        dia_semana=dia,
+                        disponible=disponible,
+                        creado_por=current_user.id
+                    )
+                    db.session.add(nueva_disponibilidad)
         
         db.session.commit()
         flash('Profesor actualizado exitosamente.', 'success')
@@ -535,9 +567,25 @@ def editar_profesor_jefe(id):
         form.rol.data = profesor.rol
         form.activo.data = profesor.activo
         if profesor.carreras:
-            form.carrera.data = str(profesor.carreras[0].id)
+            form.carreras.data = [c.id for c in profesor.carreras]
     
-    return render_template('jefe/editar_profesor.html', form=form, profesor=profesor)
+    # Cargar disponibilidades actuales del profesor
+    disponibilidad_dict = {}
+    if profesor.is_profesor():
+        disponibilidades_actuales = DisponibilidadProfesor.query.filter_by(
+            profesor_id=profesor.id,
+            activo=True
+        ).all()
+        
+        for disp in disponibilidades_actuales:
+            if disp.disponible:
+                disponibilidad_dict[(disp.horario_id, disp.dia_semana)] = True
+    
+    return render_template('jefe/editar_profesor.html', 
+                         form=form, 
+                         profesor=profesor,
+                         horarios=horarios,
+                         disponibilidad_dict=disponibilidad_dict)
 
 @app.route('/jefe-carrera/profesor/<int:id>/eliminar', methods=['POST'])
 @login_required
@@ -1555,6 +1603,92 @@ def asignacion_masiva_materias_grupos():
                          cuatrimestre=cuatrimestre,
                          grupos=grupos,
                          materias=materias,
+                         asignaciones_actuales=asignaciones_actuales)
+
+
+@app.route('/admin/grupo/<int:grupo_id>/asignar-profesores', methods=['GET', 'POST'])
+@login_required
+def asignar_profesores_grupo(grupo_id):
+    """Asignar profesores a las materias de un grupo específico"""
+    if not current_user.is_admin() and not current_user.is_jefe_carrera():
+        flash('No tienes permisos para acceder a esta página.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    grupo = Grupo.query.get_or_404(grupo_id)
+    
+    # Verificar que el jefe de carrera puede acceder
+    if current_user.is_jefe_carrera() and not current_user.tiene_carrera(grupo.carrera_id):
+        flash('No tienes acceso a este grupo.', 'error')
+        return redirect(url_for('dashboard'))
+    
+    # Obtener materias del grupo
+    materias_grupo = grupo.materias
+    
+    # Obtener profesores disponibles (de la misma carrera)
+    profesores = User.query.filter(
+        User.carreras.any(id=grupo.carrera_id),
+        User.rol.in_(['profesor_completo', 'profesor_asignatura']),
+        User.activo == True
+    ).order_by(User.apellido, User.nombre).all()
+    
+    # Obtener asignaciones actuales
+    asignaciones_actuales = {}
+    for asig in AsignacionProfesorGrupo.query.filter_by(grupo_id=grupo.id, activo=True).all():
+        if asig.materia_id not in asignaciones_actuales:
+            asignaciones_actuales[asig.materia_id] = []
+        asignaciones_actuales[asig.materia_id].append(asig.profesor_id)
+    
+    if request.method == 'POST':
+        try:
+            # Desactivar todas las asignaciones anteriores de este grupo
+            AsignacionProfesorGrupo.query.filter_by(
+                grupo_id=grupo.id,
+                activo=True
+            ).update({'activo': False})
+            db.session.flush()  # Forzar el UPDATE antes de insertar nuevos
+            
+            # Procesar nuevas asignaciones
+            asignaciones_creadas = 0
+            for materia in materias_grupo:
+                # El nombre del campo es 'profesor_<materia_id>' (singular)
+                profesor_id = request.form.get(f'profesor_{materia.id}')
+                
+                if profesor_id:
+                    # Buscar si ya existe una asignación inactiva para esta combinación
+                    asig_existente = AsignacionProfesorGrupo.query.filter_by(
+                        profesor_id=int(profesor_id),
+                        materia_id=materia.id,
+                        grupo_id=grupo.id
+                    ).first()
+                    
+                    if asig_existente:
+                        # Reactivar la asignación existente
+                        asig_existente.activo = True
+                        asig_existente.horas_semanales = materia.horas_semanales
+                    else:
+                        # Crear nueva asignación
+                        nueva_asig = AsignacionProfesorGrupo(
+                            profesor_id=int(profesor_id),
+                            materia_id=materia.id,
+                            grupo_id=grupo.id,
+                            horas_semanales=materia.horas_semanales,
+                            creado_por=current_user.id
+                        )
+                        db.session.add(nueva_asig)
+                    asignaciones_creadas += 1
+            
+            db.session.commit()
+            flash(f'Se guardaron {asignaciones_creadas} asignaciones para el grupo {grupo.codigo}.', 'success')
+            return redirect(url_for('asignar_profesores_grupo', grupo_id=grupo.id))
+            
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error al guardar asignaciones: {str(e)}', 'error')
+    
+    return render_template('admin/asignar_profesores_grupo.html',
+                         grupo=grupo,
+                         materias=materias_grupo,
+                         profesores=profesores,
                          asignaciones_actuales=asignaciones_actuales)
 
 @app.route('/admin/grupos/importar-asignaciones-materias', methods=['GET', 'POST'])
@@ -2707,6 +2841,9 @@ def editar_profesor(id):
     from forms import EditarUsuarioForm
     form = EditarUsuarioForm(user=profesor)
     
+    # Obtener horarios para mostrar en la tabla de disponibilidad
+    horarios = Horario.query.filter_by(activo=True).order_by(Horario.turno, Horario.orden).all()
+    
     if form.validate_on_submit():
         try:
             # Obtener el rol final (considerando tipo de profesor)
@@ -2732,6 +2869,29 @@ def editar_profesor(id):
             # Limpiar carrera_id si existía (por si antes era jefe de carrera)
             profesor.carrera_id = None
             
+            # Procesar disponibilidad horaria
+            # Desactivar disponibilidades anteriores (mantener historial)
+            DisponibilidadProfesor.query.filter_by(
+                profesor_id=profesor.id,
+                activo=True
+            ).update({'activo': False})
+            
+            # Crear nuevas disponibilidades basadas en el formulario
+            dias = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado']
+            for horario in horarios:
+                for dia in dias:
+                    field_name = f'disp_{horario.id}_{dia}'
+                    disponible = request.form.get(field_name) == 'True'
+                    
+                    nueva_disponibilidad = DisponibilidadProfesor(
+                        profesor_id=profesor.id,
+                        horario_id=horario.id,
+                        dia_semana=dia,
+                        disponible=disponible,
+                        creado_por=current_user.id
+                    )
+                    db.session.add(nueva_disponibilidad)
+            
             db.session.commit()
             flash(f'Profesor {profesor.get_nombre_completo()} actualizado exitosamente.', 'success')
             return redirect(url_for('gestionar_profesores'))
@@ -2755,10 +2915,23 @@ def editar_profesor(id):
         # Cargar carreras del profesor
         form.carreras.data = [c.id for c in profesor.carreras]
     
+    # Cargar disponibilidades actuales del profesor
+    disponibilidad_dict = {}
+    disponibilidades_actuales = DisponibilidadProfesor.query.filter_by(
+        profesor_id=profesor.id,
+        activo=True
+    ).all()
+    
+    for disp in disponibilidades_actuales:
+        if disp.disponible:
+            disponibilidad_dict[(disp.horario_id, disp.dia_semana)] = True
+    
     return render_template('admin/usuario_form.html', 
                          form=form, 
                          titulo=f"Editar Profesor - {profesor.get_nombre_completo()}", 
-                         usuario=profesor)
+                         usuario=profesor,
+                         horarios=horarios,
+                         disponibilidad_dict=disponibilidad_dict)
 
 @app.route('/admin/profesores/<int:id>/cambiar-password', methods=['GET', 'POST'])
 @login_required
@@ -3345,28 +3518,36 @@ def gestionar_horarios_academicos():
     # Obtener todos los horarios
     horarios_academicos = query.join(HorarioAcademico.horario).all()
 
-    # Agrupar horarios por grupo
+    # Agrupar horarios por grupo usando el campo 'grupo' de HorarioAcademico
+    # CORREGIDO: Antes se iteraba sobre materia.grupos lo que causaba duplicados
     grupos_con_horarios = {}
     
     for horario in horarios_academicos:
-        # Buscar el grupo al que pertenece esta materia
-        grupos_materia = horario.materia.grupos
+        # Usar el campo 'grupo' del HorarioAcademico (código del grupo)
+        grupo_codigo = horario.grupo
         
-        if grupos_materia:
-            for grupo in grupos_materia:
-                # Filtrar por carrera si se especifica
-                if carrera_id and grupo.carrera_id != carrera_id:
-                    continue
-                    
-                grupo_key = grupo.id
-                
-                if grupo_key not in grupos_con_horarios:
-                    grupos_con_horarios[grupo_key] = {
-                        'grupo': grupo,
-                        'horarios': []
-                    }
-                
-                grupos_con_horarios[grupo_key]['horarios'].append(horario)
+        if not grupo_codigo:
+            continue
+        
+        # Buscar el objeto Grupo por su código
+        grupo = Grupo.query.filter_by(codigo=grupo_codigo).first()
+        
+        if not grupo:
+            continue
+        
+        # Filtrar por carrera si se especifica
+        if carrera_id and grupo.carrera_id != carrera_id:
+            continue
+        
+        grupo_key = grupo.id
+        
+        if grupo_key not in grupos_con_horarios:
+            grupos_con_horarios[grupo_key] = {
+                'grupo': grupo,
+                'horarios': []
+            }
+        
+        grupos_con_horarios[grupo_key]['horarios'].append(horario)
     
     # Ordenar los horarios de cada grupo por día y hora
     for grupo_data in grupos_con_horarios.values():
@@ -3774,8 +3955,11 @@ def agregar_usuario():
     horarios = Horario.query.filter_by(activo=True).order_by(Horario.turno, Horario.orden).all()
 
     if form.validate_on_submit():
-        # Obtener el rol final (considerando tipo de profesor)
-        rol_final = form.get_final_rol()
+        # Obtener roles seleccionados del formulario
+        roles_seleccionados = form.get_roles_list()
+        
+        # Obtener el rol principal para el campo legacy
+        rol_principal = form.get_primary_rol()
         
         # Crear nuevo usuario
         nuevo_usuario = User(
@@ -3784,26 +3968,32 @@ def agregar_usuario():
             password=form.password.data,
             nombre=form.nombre.data,
             apellido=form.apellido.data,
-            rol=rol_final,
+            rol=rol_principal,  # Campo legacy
             telefono=form.telefono.data
         )
         
         # Asignar estado activo después de la creación
         nuevo_usuario.activo = form.activo.data
         
-        # Asignar carreras según el rol - ahora todos usan many-to-many
-        if rol_final in ['jefe_carrera', 'profesor_completo', 'profesor_asignatura']:
-            if form.carreras.data:
-                from models import Carrera
-                carreras_seleccionadas = Carrera.query.filter(Carrera.id.in_(form.carreras.data)).all()
-                nuevo_usuario.carreras = carreras_seleccionadas
+        # Asignar carreras si el usuario tiene roles que requieren carrera
+        requiere_carrera = any(r in roles_seleccionados for r in ['jefe_carrera', 'profesor_completo', 'profesor_asignatura'])
+        if requiere_carrera and form.carreras.data:
+            from models import Carrera
+            carreras_seleccionadas = Carrera.query.filter(Carrera.id.in_(form.carreras.data)).all()
+            nuevo_usuario.carreras = carreras_seleccionadas
 
         try:
             db.session.add(nuevo_usuario)
             db.session.flush()  # Para obtener el ID del nuevo usuario
             
-            # Procesar disponibilidad horaria para profesores
-            if rol_final in ['profesor_completo', 'profesor_asignatura']:
+            # Agregar todos los roles seleccionados a la relación many-to-many
+            from models import Role
+            for rol_nombre in roles_seleccionados:
+                nuevo_usuario.add_role(rol_nombre)
+            
+            # Procesar disponibilidad horaria si el usuario es profesor
+            es_profesor = 'profesor_completo' in roles_seleccionados or 'profesor_asignatura' in roles_seleccionados
+            if es_profesor:
                 disponibilidades_data = form.get_disponibilidades_data()
                 
                 for disp_data in disponibilidades_data:
@@ -3817,7 +4007,10 @@ def agregar_usuario():
                     db.session.add(nueva_disponibilidad)
             
             db.session.commit()
-            flash(f'Usuario {nuevo_usuario.get_nombre_completo()} creado exitosamente.', 'success')
+            
+            # Construir mensaje con todos los roles
+            roles_display = [Role.ROLES_DISPLAY.get(r, r) for r in roles_seleccionados]
+            flash(f'Usuario {nuevo_usuario.get_nombre_completo()} creado exitosamente con roles: {", ".join(roles_display)}.', 'success')
             return redirect(url_for('gestionar_usuarios'))
         except Exception as e:
             db.session.rollback()
@@ -3841,23 +4034,30 @@ def editar_usuario(id):
     horarios = Horario.query.filter_by(activo=True).order_by(Horario.turno, Horario.orden).all()
 
     if form.validate_on_submit():
-        # Verificar cambios en el rol
-        rol_anterior = usuario.rol
+        # Obtener roles seleccionados del formulario
+        roles_seleccionados = form.get_roles_list()
         
-        # Obtener el rol final (considerando tipo de profesor)
-        rol_final = form.get_final_rol()
+        # Obtener el rol principal para el campo legacy
+        rol_principal = form.get_primary_rol()
         
         # Actualizar usuario
         usuario.username = form.username.data
         usuario.email = form.email.data
         usuario.nombre = form.nombre.data
         usuario.apellido = form.apellido.data
-        usuario.rol = rol_final
+        usuario.rol = rol_principal  # Campo legacy
         usuario.telefono = form.telefono.data
         usuario.activo = form.activo.data
         
-        # Asignar carreras según el nuevo rol - ahora todos usan many-to-many
-        if rol_final in ['jefe_carrera', 'profesor_completo', 'profesor_asignatura']:
+        # Limpiar roles anteriores y agregar los nuevos
+        from models import Role
+        usuario.roles.clear()  # Limpiar roles actuales
+        for rol_nombre in roles_seleccionados:
+            usuario.add_role(rol_nombre)
+        
+        # Asignar carreras si el usuario tiene roles que requieren carrera
+        requiere_carrera = any(r in roles_seleccionados for r in ['jefe_carrera', 'profesor_completo', 'profesor_asignatura'])
+        if requiere_carrera:
             from models import Carrera
             if form.carreras.data:
                 carreras_seleccionadas = Carrera.query.filter(Carrera.id.in_(form.carreras.data)).all()
@@ -3865,11 +4065,12 @@ def editar_usuario(id):
             else:
                 usuario.carreras = []
         else:
-            # Si es admin u otro rol, limpiar carreras
+            # Si no tiene roles que requieren carrera, limpiar carreras
             usuario.carreras = []
         
-        # Procesar disponibilidad horaria para profesores
-        if rol_final in ['profesor_completo', 'profesor_asignatura']:
+        # Procesar disponibilidad horaria si el usuario es profesor
+        es_profesor = 'profesor_completo' in roles_seleccionados or 'profesor_asignatura' in roles_seleccionados
+        if es_profesor:
             disponibilidades_data = form.get_disponibilidades_data()
             
             # Desactivar disponibilidades anteriores (mantener historial)
@@ -3891,7 +4092,10 @@ def editar_usuario(id):
 
         try:
             db.session.commit()
-            flash(f'Usuario {usuario.get_nombre_completo()} actualizado exitosamente.', 'success')
+            
+            # Construir mensaje con todos los roles
+            roles_display = [Role.ROLES_DISPLAY.get(r, r) for r in roles_seleccionados]
+            flash(f'Usuario {usuario.get_nombre_completo()} actualizado exitosamente con roles: {", ".join(roles_display)}.', 'success')
             return redirect(url_for('gestionar_usuarios'))
         except Exception as e:
             db.session.rollback()
@@ -3906,22 +4110,20 @@ def editar_usuario(id):
         form.telefono.data = usuario.telefono
         form.activo.data = usuario.activo
         
-        # Configurar rol y tipo de profesor
-        if usuario.rol in ['profesor_completo', 'profesor_asignatura']:
-            form.rol.data = 'profesor'
-            form.tipo_profesor.data = usuario.rol
-            # Cargar carreras del profesor
-            form.carreras.data = [c.id for c in usuario.carreras]
-        elif usuario.rol == 'jefe_carrera':
-            form.rol.data = usuario.rol
-            # Cargar carreras del jefe de carrera (ahora usa many-to-many)
-            form.carreras.data = [c.id for c in usuario.carreras]
-        else:
-            form.rol.data = usuario.rol
+        # Configurar los roles seleccionados (nuevo sistema)
+        form.roles_seleccionados.data = usuario.get_roles_list()
+        
+        # Cargar carreras
+        form.carreras.data = [c.id for c in usuario.carreras]
+        
+        # Mantener compatibilidad con el campo legacy
+        form.rol.data = usuario.rol
     
     # Cargar disponibilidades actuales del profesor
     disponibilidad_dict = {}
-    if usuario.rol in ['profesor_completo', 'profesor_asignatura']:
+    roles_actuales = usuario.get_roles_list()
+    es_profesor_actual = 'profesor_completo' in roles_actuales or 'profesor_asignatura' in roles_actuales
+    if es_profesor_actual:
         disponibilidades_actuales = DisponibilidadProfesor.query.filter_by(
             profesor_id=usuario.id,
             activo=True
@@ -5094,14 +5296,10 @@ def exportar_horarios_grupo_excel():
         if not a.profesor or not a.materia or not a.horario:
             continue
 
-        # Buscar el grupo al que pertenece esta materia
-        grupos_materia = a.materia.grupos
+        # CORREGIDO: Usar el campo 'grupo' del HorarioAcademico directamente
+        grupo_nombre = a.grupo
         
-        if grupos_materia:
-            # Tomar el primer grupo
-            grupo = grupos_materia[0]
-            grupo_nombre = grupo.codigo
-            
+        if grupo_nombre:
             if grupo_nombre not in horarios_por_grupo:
                 horarios_por_grupo[grupo_nombre] = {'Lunes': [], 'Martes': [], 'Miércoles': [], 'Jueves': [], 'Viernes': []}
             
@@ -5158,14 +5356,10 @@ def exportar_horarios_grupo_pdf():
         if not a.profesor or not a.materia or not a.horario:
             continue
         
-        # Buscar el grupo al que pertenece esta materia
-        grupos_materia = a.materia.grupos
+        # CORREGIDO: Usar el campo 'grupo' del HorarioAcademico directamente
+        grupo_nombre = a.grupo
         
-        if grupos_materia:
-            # Tomar el primer grupo
-            grupo = grupos_materia[0]
-            grupo_nombre = grupo.codigo
-            
+        if grupo_nombre:
             if grupo_nombre not in horarios_por_grupo:
                 horarios_por_grupo[grupo_nombre] = {'Lunes': [], 'Martes': [], 'Miércoles': [], 'Jueves': [], 'Viernes': []}
             
@@ -5382,16 +5576,13 @@ def exportar_jefe_horarios_grupo_excel():
         for a in asignaciones:
             if not all([a.profesor, a.materia, a.horario]): continue
             
-            # Buscar el grupo al que pertenece esta materia
-            grupos_materia = a.materia.grupos
+            # CORREGIDO: Usar el campo 'grupo' del HorarioAcademico directamente
+            grupo_nombre = a.grupo
             
-            if grupos_materia:
-                # Filtrar grupos de esta carrera
-                grupos_carrera = [g for g in grupos_materia if g.carrera_id == id_carrera]
-                if grupos_carrera:
-                    grupo = grupos_carrera[0]
-                    grupo_nombre = grupo.codigo
-                    
+            if grupo_nombre:
+                # Verificar que el grupo pertenece a la carrera del jefe
+                grupo = Grupo.query.filter_by(codigo=grupo_nombre).first()
+                if grupo and grupo.carrera_id == id_carrera:
                     if grupo_nombre not in horarios_por_grupo:
                         horarios_por_grupo[grupo_nombre] = {'Lunes': [], 'Martes': [], 'Miércoles': [], 'Jueves': [], 'Viernes': []}
                     
@@ -5437,16 +5628,13 @@ def exportar_jefe_horarios_grupo_pdf():
         for a in asignaciones:
             if not all([a.profesor, a.materia, a.horario]): continue
             
-            # Buscar el grupo al que pertenece esta materia
-            grupos_materia = a.materia.grupos
+            # CORREGIDO: Usar el campo 'grupo' del HorarioAcademico directamente
+            grupo_nombre = a.grupo
             
-            if grupos_materia:
-                # Filtrar grupos de esta carrera
-                grupos_carrera = [g for g in grupos_materia if g.carrera_id == id_carrera]
-                if grupos_carrera:
-                    grupo = grupos_carrera[0]
-                    grupo_nombre = grupo.codigo
-                    
+            if grupo_nombre:
+                # Verificar que el grupo pertenece a la carrera del jefe
+                grupo = Grupo.query.filter_by(codigo=grupo_nombre).first()
+                if grupo and grupo.carrera_id == id_carrera:
                     if grupo_nombre not in horarios_por_grupo:
                         horarios_por_grupo[grupo_nombre] = {'Lunes': [], 'Martes': [], 'Miércoles': [], 'Jueves': [], 'Viernes': []}
                     

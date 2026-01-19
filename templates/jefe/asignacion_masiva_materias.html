@@ -152,7 +152,7 @@
                                                data-accion="desasignar"
                                                onchange="actualizarContador()"
                                                checked
-                                               style="cursor: pointer; transform: scale(1.3);">
+                                                   >
                                         {% else %}
                                         <!-- No asignada - checkbox vacío -->
                                         <input type="checkbox" 
@@ -161,7 +161,7 @@
                                                value="{{ profesor.id }}-{{ materia.id }}"
                                                data-accion="asignar"
                                                onchange="actualizarContador()"
-                                               style="cursor: pointer; transform: scale(1.3);">
+                                                   >
                                         {% endif %}
                                     </div>
                                 </td>
@@ -345,11 +345,21 @@
     /* Mejorar hover en las filas */
     tbody tr:hover {
         background-color: #f8f9fa;
+        transform: none;
     }
     
-    /* Mejorar visibilidad de los checkboxes */
-    .asignacion-checkbox:hover {
-        transform: scale(1.4);
+    /* Estabilizar tamaño del checkbox para evitar jitter */
+    .asignacion-checkbox {
+        cursor: pointer;
+        transform: scale(1.3);
+        transform-origin: center;
+        display: inline-block;
+    }
+    
+    .asignacion-checkbox:hover,
+    .asignacion-checkbox:focus {
+        transform: scale(1.3);
+        box-shadow: 0 0 0 0.15rem rgba(13, 110, 253, 0.25);
     }
     
     /* Estilo para checkboxes de asignaciones actuales (verdes) */

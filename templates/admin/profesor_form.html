@@ -347,18 +347,28 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (selectMatutinoBtn) {
         selectMatutinoBtn.addEventListener('click', function() {
+            // Seleccionar SOLO matutino (7:00-14:00) y deseleccionar vespertino
             const matutinoCheckboxes = document.querySelectorAll('.matutino-checkbox');
+            const vespertinoCheckboxes = document.querySelectorAll('.vespertino-checkbox');
             matutinoCheckboxes.forEach(checkbox => {
                 checkbox.checked = true;
+            });
+            vespertinoCheckboxes.forEach(checkbox => {
+                checkbox.checked = false;
             });
         });
     }
 
     if (selectVespertinoBtn) {
         selectVespertinoBtn.addEventListener('click', function() {
+            // Seleccionar SOLO vespertino (13:00-20:00) y deseleccionar matutino
+            const matutinoCheckboxes = document.querySelectorAll('.matutino-checkbox');
             const vespertinoCheckboxes = document.querySelectorAll('.vespertino-checkbox');
             vespertinoCheckboxes.forEach(checkbox => {
                 checkbox.checked = true;
+            });
+            matutinoCheckboxes.forEach(checkbox => {
+                checkbox.checked = false;
             });
         });
     }

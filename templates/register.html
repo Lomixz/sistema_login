@@ -396,16 +396,25 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Botones de selección masiva
     document.getElementById('btnMatutino').addEventListener('click', function() {
+        // Primero deseleccionar vespertino, luego seleccionar matutino
+        deseleccionarTurno('vespertino');
         aplicarSeleccionMasiva('matutino');
     });
 
     document.getElementById('btnVespertino').addEventListener('click', function() {
+        // Primero deseleccionar matutino, luego seleccionar vespertino
+        deseleccionarTurno('matutino');
         aplicarSeleccionMasiva('vespertino');
     });
 
     document.getElementById('btnDesmarcar').addEventListener('click', function() {
         checks.forEach(chk => chk.checked = false);
     });
+
+    function deseleccionarTurno(turno) {
+        const checkboxesTurno = document.querySelectorAll(`.availability-check[data-turno="${turno}"]`);
+        checkboxesTurno.forEach(chk => chk.checked = false);
+    }
 
     function aplicarSeleccionMasiva(turno) {
         const dias = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];

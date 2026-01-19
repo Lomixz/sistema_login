@@ -177,11 +177,11 @@
                                     <th>Usuario</th>
                                     <th>Nombre Completo</th>
                                     <th>Email</th>
-                                    <th>Rol</th>
+                                    <th class="text-center">Rol</th>
                                     <th>Carrera</th>
-                                    <th>Estado</th>
-                                    <th>Registro</th>
-                                    <th>Acciones</th>
+                                    <th class="text-center">Estado</th>
+                                    <th class="text-center">Registro</th>
+                                    <th class="text-center">Acciones</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -195,21 +195,21 @@
                                     <td>{{ usuario.username }}</td>
                                     <td>{{ usuario.get_nombre_completo() }}</td>
                                     <td>{{ usuario.email }}</td>
-                                    <td>
+                                    <td class="text-center">
                                         <span class="badge bg-{% if usuario.rol == 'admin' %}danger{% elif usuario.rol == 'jefe_carrera' %}warning{% else %}primary{% endif %}">
                                             {{ usuario.get_rol_display() }}
                                         </span>
                                     </td>
                                     <td>{{ usuario.get_carrera_nombre() }}</td>
-                                    <td>
+                                    <td class="text-center">
                                         {% if usuario.activo %}
                                             <span class="badge bg-success">Activo</span>
                                         {% else %}
                                             <span class="badge bg-danger">Inactivo</span>
                                         {% endif %}
                                     </td>
-                                    <td>{{ usuario.fecha_registro.strftime('%d/%m/%Y') }}</td>
-                                    <td>
+                                    <td class="text-center">{{ usuario.fecha_registro.strftime('%d/%m/%Y') }}</td>
+                                    <td class="text-center">
                                         <div class="btn-group" role="group">
                                             <a href="{{ url_for('editar_usuario', id=usuario.id) }}" 
                                                class="btn btn-sm btn-outline-primary" 
@@ -404,4 +404,54 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 </script>
+
+<style>
+/* Evitar recorte de botones en la tabla de usuarios */
+.card-body .table-responsive {
+    overflow-x: auto !important;
+    overflow-y: visible !important;
+    overflow: visible !important;
+    border-radius: 0 !important;
+}
+
+/* Desactivar el escalado en hover que causa recortes */
+.table tbody tr:hover {
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+/* Asegurar que la columna de acciones tenga suficiente espacio */
+.table thead th:last-child,
+.table tbody td:last-child {
+    white-space: nowrap;
+    min-width: 200px;
+    width: 200px;
+    padding-right: 1.5rem !important;
+    padding-left: 1rem !important;
+}
+
+/* Asegurar que los btn-group no se envuelvan y sean visibles */
+.table .btn-group {
+    display: inline-flex !important;
+    flex-wrap: nowrap !important;
+    gap: 2px;
+}
+
+/* Ajustar tamaño de botones */
+.table .btn-group .btn-sm {
+    padding: 0.35rem 0.6rem !important;
+    font-size: 0.875rem;
+}
+
+/* Forzar visibilidad de tooltips */
+.table tbody tr {
+    position: relative;
+    z-index: 1;
+}
+
+.table tbody tr:hover {
+    z-index: 2;
+    position: relative;
+}
+</style>
 {% endblock %}

@@ -151,43 +151,107 @@
                         <!-- Rol y Carrera -->
                         <h5 class="mb-3 text-warning">
                             <i class="fas fa-user-tag me-2"></i>
-                            Rol y Asignación
+                            Roles y Asignación
                         </h5>
 
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                {{ form.rol.label(class="form-label") }}
-                                <div class="input-group">
-                                    <span class="input-group-text">
-                                        <i class="fas fa-user-tag"></i>
-                                    </span>
-                                    {{ form.rol(class="form-select", id="rolSelect") }}
+                        <!-- Nuevo: Selección de múltiples roles con checkboxes -->
+                        <div class="mb-4">
+                            <label class="form-label">
+                                <i class="fas fa-users-cog me-1"></i>
+                                Roles del Usuario <span class="text-danger">*</span>
+                            </label>
+                            <p class="text-muted small mb-2">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Selecciona uno o más roles para este usuario. Un usuario puede tener múltiples roles.
+                            </p>
+                            
+                            <div class="row g-3" id="rolesContainer">
+                                <!-- Administrador -->
+                                <div class="col-md-6">
+                                    <div class="form-check role-card p-3 border rounded">
+                                        <input class="form-check-input role-checkbox" type="checkbox" 
+                                               name="roles_seleccionados" value="admin" id="role_admin"
+                                               {% if usuario and 'admin' in usuario.get_roles_list() %}checked{% endif %}>
+                                        <label class="form-check-label d-flex align-items-center" for="role_admin">
+                                            <span class="role-icon bg-danger text-white rounded-circle p-2 me-2">
+                                                <i class="fas fa-user-shield"></i>
+                                            </span>
+                                            <div>
+                                                <strong>Administrador</strong>
+                                                <small class="d-block text-muted">Acceso total al sistema</small>
+                                            </div>
+                                        </label>
+                                    </div>
                                 </div>
-                                {% if form.rol.errors %}
-                                    {% for error in form.rol.errors %}
-                                        <div class="text-danger small">{{ error }}</div>
-                                    {% endfor %}
-                                {% endif %}
+                                
+                                <!-- Jefe de Carrera -->
+                                <div class="col-md-6">
+                                    <div class="form-check role-card p-3 border rounded">
+                                        <input class="form-check-input role-checkbox" type="checkbox" 
+                                               name="roles_seleccionados" value="jefe_carrera" id="role_jefe"
+                                               {% if usuario and 'jefe_carrera' in usuario.get_roles_list() %}checked{% endif %}>
+                                        <label class="form-check-label d-flex align-items-center" for="role_jefe">
+                                            <span class="role-icon bg-warning text-dark rounded-circle p-2 me-2">
+                                                <i class="fas fa-user-tie"></i>
+                                            </span>
+                                            <div>
+                                                <strong>Jefe de Carrera</strong>
+                                                <small class="d-block text-muted">Gestiona profesores y horarios de su carrera</small>
+                                            </div>
+                                        </label>
+                                    </div>
+                                </div>
+                                
+                                <!-- Profesor de Tiempo Completo -->
+                                <div class="col-md-6">
+                                    <div class="form-check role-card p-3 border rounded">
+                                        <input class="form-check-input role-checkbox" type="checkbox" 
+                                               name="roles_seleccionados" value="profesor_completo" id="role_prof_completo"
+                                               {% if usuario and 'profesor_completo' in usuario.get_roles_list() %}checked{% endif %}>
+                                        <label class="form-check-label d-flex align-items-center" for="role_prof_completo">
+                                            <span class="role-icon bg-primary text-white rounded-circle p-2 me-2">
+                                                <i class="fas fa-chalkboard-teacher"></i>
+                                            </span>
+                                            <div>
+                                                <strong>Profesor Tiempo Completo</strong>
+                                                <small class="d-block text-muted">Disponibilidad completa</small>
+                                            </div>
+                                        </label>
+                                    </div>
+                                </div>
+                                
+                                <!-- Profesor por Asignatura -->
+                                <div class="col-md-6">
+                                    <div class="form-check role-card p-3 border rounded">
+                                        <input class="form-check-input role-checkbox" type="checkbox" 
+                                               name="roles_seleccionados" value="profesor_asignatura" id="role_prof_asig"
+                                               {% if usuario and 'profesor_asignatura' in usuario.get_roles_list() %}checked{% endif %}>
+                                        <label class="form-check-label d-flex align-items-center" for="role_prof_asig">
+                                            <span class="role-icon bg-info text-white rounded-circle p-2 me-2">
+                                                <i class="fas fa-user-clock"></i>
+                                            </span>
+                                            <div>
+                                                <strong>Profesor por Asignatura</strong>
+                                                <small class="d-block text-muted">Horario parcial</small>
+                                            </div>
+                                        </label>
+                                    </div>
+                                </div>
                             </div>
-
-                            <div class="col-md-6 mb-3" id="tipoProfesorDiv" style="display: none;">
-                                {{ form.tipo_profesor.label(class="form-label") }}
-                                <div class="input-group">
-                                    <span class="input-group-text">
-                                        <i class="fas fa-chalkboard-teacher"></i>
-                                    </span>
-                                    {{ form.tipo_profesor(class="form-select", id="tipoProfesorSelect") }}
-                                </div>
-                                {% if form.tipo_profesor.errors %}
-                                    {% for error in form.tipo_profesor.errors %}
-                                        <div class="text-danger small">{{ error }}</div>
-                                    {% endfor %}
-                                {% endif %}
-                                <div class="form-text">
-                                    Selecciona si es de tiempo completo o por asignatura
-                                </div>
-                            </div>
+                            
+                            {% if form.roles_seleccionados.errors %}
+                                {% for error in form.roles_seleccionados.errors %}
+                                    <div class="text-danger small mt-1">{{ error }}</div>
+                                {% endfor %}
+                            {% endif %}
                         </div>
+
+                        <!-- Campo hidden para mantener compatibilidad con el rol legacy -->
+                        <input type="hidden" name="rol" id="rolLegacy" value="{{ usuario.rol if usuario else '' }}">
+                        
+                        <!-- Tipo de profesor hidden (ya no se necesita con el nuevo sistema) -->
+                        <input type="hidden" name="tipo_profesor" id="tipoProfesorHidden" value="">
+
 
                         <div class="row">
                             <!-- Campo de carreras para jefes de carrera y profesores -->
@@ -399,53 +463,81 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Función para mostrar/ocultar campos basado en el rol y tipo de profesor
+    // Función para mostrar/ocultar campos basado en los roles seleccionados
     function toggleFields() {
-        const rolSelect = document.getElementById('rolSelect');
-        const tipoProfesorDiv = document.getElementById('tipoProfesorDiv');
+        const roleCheckboxes = document.querySelectorAll('.role-checkbox');
         const carrerasDiv = document.getElementById('carrerasDiv');
         const carrerasHelpText = document.getElementById('carrerasHelpText');
         const disponibilidadDiv = document.getElementById('disponibilidadDiv');
-        const tipoProfesorSelect = document.getElementById('tipoProfesorSelect');
-
-        if (!rolSelect) return;
-
-        const selectedRol = rolSelect.value;
-
-        // Ocultar todos por defecto
-        tipoProfesorDiv.style.display = 'none';
-        if (carrerasDiv) carrerasDiv.style.display = 'none';
-        if (disponibilidadDiv) disponibilidadDiv.style.display = 'none';
-
-        if (selectedRol === 'profesor') {
-            // Mostrar selector de tipo de profesor
-            tipoProfesorDiv.style.display = 'block';
-            
-            // Si hay un tipo de profesor seleccionado, mostrar carreras y disponibilidad
-            if (tipoProfesorSelect && tipoProfesorSelect.value) {
-                if (carrerasDiv) carrerasDiv.style.display = 'block';
-                if (disponibilidadDiv) disponibilidadDiv.style.display = 'block';
+        const rolLegacy = document.getElementById('rolLegacy');
+        
+        // Obtener roles seleccionados
+        const selectedRoles = [];
+        roleCheckboxes.forEach(cb => {
+            if (cb.checked) {
+                selectedRoles.push(cb.value);
             }
-        } else if (selectedRol === 'jefe_carrera') {
-            // Mostrar selector de carreras (ahora múltiples) para jefe
-            if (carrerasDiv) carrerasDiv.style.display = 'block';
-            if (carrerasHelpText) {
-                carrerasHelpText.textContent = 'Seleccione una o más carreras que el jefe de carrera podrá gestionar';
+        });
+        
+        // Determinar si se necesitan mostrar campos adicionales
+        const esProfesor = selectedRoles.includes('profesor_completo') || selectedRoles.includes('profesor_asignatura');
+        const esJefeCarrera = selectedRoles.includes('jefe_carrera');
+        const requiereCarrera = esProfesor || esJefeCarrera;
+        
+        // Mostrar/ocultar selector de carreras
+        if (carrerasDiv) {
+            carrerasDiv.style.display = requiereCarrera ? 'block' : 'none';
+        }
+        
+        // Actualizar texto de ayuda para carreras
+        if (carrerasHelpText) {
+            if (esProfesor && esJefeCarrera) {
+                carrerasHelpText.textContent = 'Selecciona las carreras donde este usuario será profesor y/o jefe de carrera';
+            } else if (esProfesor) {
+                carrerasHelpText.textContent = 'Selecciona las carreras donde el profesor imparte clases';
+            } else if (esJefeCarrera) {
+                carrerasHelpText.textContent = 'Selecciona las carreras que el jefe de carrera podrá gestionar';
             }
         }
+        
+        // Mostrar disponibilidad solo para profesores
+        if (disponibilidadDiv) {
+            disponibilidadDiv.style.display = esProfesor ? 'block' : 'none';
+        }
+        
+        // Actualizar el campo legacy con el rol principal
+        if (rolLegacy) {
+            if (selectedRoles.includes('admin')) {
+                rolLegacy.value = 'admin';
+            } else if (selectedRoles.includes('jefe_carrera')) {
+                rolLegacy.value = 'jefe_carrera';
+            } else if (selectedRoles.includes('profesor_completo')) {
+                rolLegacy.value = 'profesor_completo';
+            } else if (selectedRoles.includes('profesor_asignatura')) {
+                rolLegacy.value = 'profesor_asignatura';
+            } else {
+                rolLegacy.value = '';
+            }
+        }
+        
+        // Actualizar estilos visuales de las tarjetas de roles
+        document.querySelectorAll('.role-card').forEach(card => {
+            const checkbox = card.querySelector('.role-checkbox');
+            if (checkbox && checkbox.checked) {
+                card.classList.add('border-primary', 'bg-light');
+                card.style.borderWidth = '2px';
+            } else {
+                card.classList.remove('border-primary', 'bg-light');
+                card.style.borderWidth = '1px';
+            }
+        });
     }
 
-    // Event listeners
-    const rolSelect = document.getElementById('rolSelect');
-    const tipoProfesorSelect = document.getElementById('tipoProfesorSelect');
-    
-    if (rolSelect) {
-        rolSelect.addEventListener('change', toggleFields);
-    }
-    
-    if (tipoProfesorSelect) {
-        tipoProfesorSelect.addEventListener('change', toggleFields);
-    }
+    // Event listeners para los checkboxes de roles
+    const roleCheckboxes = document.querySelectorAll('.role-checkbox');
+    roleCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', toggleFields);
+    });
     
     // Ejecutar al cargar la página
     toggleFields();
@@ -458,18 +550,28 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (selectMatutinoBtn) {
         selectMatutinoBtn.addEventListener('click', function() {
+            // Seleccionar SOLO matutino (7:00-14:00) y deseleccionar vespertino
             const matutinoCheckboxes = document.querySelectorAll('.matutino-checkbox');
+            const vespertinoCheckboxes = document.querySelectorAll('.vespertino-checkbox');
             matutinoCheckboxes.forEach(checkbox => {
                 checkbox.checked = true;
+            });
+            vespertinoCheckboxes.forEach(checkbox => {
+                checkbox.checked = false;
             });
         });
     }
 
     if (selectVespertinoBtn) {
         selectVespertinoBtn.addEventListener('click', function() {
+            // Seleccionar SOLO vespertino (13:00-20:00) y deseleccionar matutino
+            const matutinoCheckboxes = document.querySelectorAll('.matutino-checkbox');
             const vespertinoCheckboxes = document.querySelectorAll('.vespertino-checkbox');
             vespertinoCheckboxes.forEach(checkbox => {
                 checkbox.checked = true;
+            });
+            matutinoCheckboxes.forEach(checkbox => {
+                checkbox.checked = false;
             });
         });
     }
@@ -523,4 +625,49 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 </script>
+
+<style>
+/* Estilos para las tarjetas de roles */
+.role-card {
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background-color: white;
+}
+
+.role-card:hover {
+    background-color: #f8f9fa;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.role-card .form-check-input {
+    width: 1.5em;
+    height: 1.5em;
+    margin-top: 0.75em;
+}
+
+.role-card .form-check-input:checked {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+}
+
+.role-icon {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.role-card.border-primary {
+    box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.25);
+}
+
+/* Animación al seleccionar */
+.role-card .form-check-input:checked + .form-check-label .role-icon {
+    transform: scale(1.1);
+    transition: transform 0.2s ease;
+}
+</style>
 {% endblock %}

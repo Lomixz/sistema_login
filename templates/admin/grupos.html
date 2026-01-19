@@ -202,6 +202,10 @@
                                                class="btn btn-sm btn-success" title="Ver Materias">
                                                 <i class="fas fa-eye"></i>
                                             </a>
+                                            <a href="{{ url_for('asignar_profesores_grupo', grupo_id=grupo.id) }}" 
+                                               class="btn btn-sm btn-primary" title="Asignar Profesores">
+                                                <i class="fas fa-user-tie"></i>
+                                            </a>
                                             <a href="{{ url_for('editar_grupo', id=grupo.id) }}" 
                                                class="btn btn-sm btn-warning" title="Editar">
                                                 <i class="fas fa-edit"></i>
