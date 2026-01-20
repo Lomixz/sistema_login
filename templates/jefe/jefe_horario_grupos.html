@@ -1,57 +1,124 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="container mt-5">
+<div class="container-fluid mt-4 px-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h3 class="mb-0">Horario por Grupo de tu Carrera</h3>
-            <small class="text-muted">Visualiza los horarios de los grupos activos.</small>
+            <h3 class="mb-0">Horario Semanal por Grupo</h3>
+            <small class="text-muted">Visualiza y exporta los horarios de los grupos de tu carrera.</small>
         </div>
         <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary">
             <i class="fas fa-arrow-left me-1"></i> Regresar
         </a>
     </div>
 
-    <div class="mb-3">
-        <div class="input-group">
-            <span class="input-group-text"><i class="fas fa-search"></i></span>
-            <input type="text" id="searchInput" class="form-control" placeholder="Buscar por código de grupo...">
+    <!-- Filtros -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white py-2">
+            <i class="fas fa-filter me-2"></i> Filtros de Búsqueda
+        </div>
+        <div class="card-body py-3">
+            <div class="row g-3 align-items-end">
+                <!-- Filtro por Cuatrimestre (Client-side) -->
+                <div class="col-md-4">
+                    <label for="cuatrimestreSelect" class="form-label fw-bold mb-1">
+                        <i class="fas fa-calendar-alt me-1"></i> Cuatrimestre
+                    </label>
+                    <select id="cuatrimestreSelect" class="form-select">
+                        <option value="">Todos los cuatrimestres</option>
+                        <option value="0">Propedéutico</option>
+                        {% for i in range(1, 11) %}
+                        <option value="{{ i }}">Cuatrimestre {{ i }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <!-- Búsqueda por Código -->
+                <div class="col-md-4">
+                    <label for="searchInput" class="form-label fw-bold mb-1">
+                        <i class="fas fa-search me-1"></i> Buscar por código
+                    </label>
+                    <input type="text" id="searchInput" class="form-control" placeholder="Ej: 7MSC1...">
+                </div>
+                
+                <!-- Botón Limpiar -->
+                <div class="col-md-4">
+                    <button type="button" id="btnLimpiar" class="btn btn-outline-secondary w-100">
+                        <i class="fas fa-times me-1"></i> Limpiar filtros
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
     
+    <!-- Contador de resultados -->
+    <div class="mb-3">
+        <span class="badge bg-info fs-6">
+            <i class="fas fa-list me-1"></i>
+            <span id="contadorGrupos">{{ horarios_data|length }}</span> grupos encontrados
+        </span>
+    </div>
+    
     <div class="card shadow-sm">
-        <div class="card-body">
+        <div class="card-body p-2">
             <div class="table-responsive">
-                <table class="table table-bordered table-hover text-center align-middle">
+                <table class="table table-bordered table-hover text-center align-middle mb-0">
                     <thead class="table-dark">
                         <tr>
-                            <th style="width: 20%;">Grupo</th>
+                            <th style="width: 12%;">Grupo</th>
                             <th>Lunes</th>
                             <th>Martes</th>
                             <th>Miércoles</th>
                             <th>Jueves</th>
                             <th>Viernes</th>
+                            <th style="width: 8%;">Acciones</th>
                         </tr>
                     </thead>
                     <tbody id="horariosTableBody">
                         {% for grupo, dias in horarios_data.items() %}
-                        <tr class="schedule-row">
-                            <td class="row-name"><strong>{{ grupo }}</strong></td>
-                            {% for dia_semana in ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'] %}
-                            <td>
+                        {# Extraer número de cuatrimestre del nombre del grupo (ej: 1MSC1 -> 1) #}
+                        {% set cuatri_numero = grupo[0:2] if grupo[1:2].isdigit() else grupo[0:1] %}
+                        {% if not cuatri_numero.isdigit() %}{% set cuatri_numero = '0' %}{% endif %}
+                        
+                        <tr class="schedule-row" data-cuatrimestre="{{ cuatri_numero }}">
+                            <td class="row-name">
+                                <div class="d-flex flex-column align-items-center">
+                                    <span class="badge bg-secondary mb-1" style="font-size: 0.7rem;">
+                                        {% if cuatri_numero == '0' %}Prop.{% else %}Cuatri {{ cuatri_numero }}{% endif %}
+                                    </span>
+                                    <strong class="fs-6">{{ grupo }}</strong>
+                                </div>
+                            </td>
+                             {% for dia_semana in ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'] %}
+                            <td style="vertical-align: top; padding: 4px;">
                                 {% for clase in dias[dia_semana] %}
-                                    <div class="clase-item p-2 mb-1 border rounded bg-light small">{{ clase | safe }}</div>
+                                    <div class="clase-item p-2 mb-1 border rounded bg-light small" style="font-size: 0.75rem;">
+                                        {{ clase | safe }}
+                                    </div>
                                 {% endfor %}
                             </td>
                             {% endfor %}
+                            <td>
+                                <div class="btn-group-vertical btn-group-sm" role="group">
+                                    <a href="{{ url_for('exportar_jefe_horario_grupo_excel', nombre_grupo=grupo) }}" 
+                                       class="btn btn-outline-success mb-1" 
+                                       data-bs-toggle="tooltip" 
+                                       title="Exportar a Excel">
+                                        <i class="fas fa-file-excel"></i>
+                                    </a>
+                                </div>
+                            </td>
                         </tr>
                         {% else %}
                         <tr>
-                            <td colspan="6" class="text-center p-4">No hay horarios de grupos para tu carrera.</td>
+                            <td colspan="7" class="text-center p-4">
+                                <i class="fas fa-info-circle text-muted me-2"></i>
+                                No hay horarios registrados.
+                            </td>
                         </tr>
                         {% endfor %}
                         <tr id="noResultsRow" style="display: none;">
-                            <td colspan="6" class="text-center p-4">No se encontraron resultados para su búsqueda.</td>
+                            <td colspan="7" class="text-center p-4">No se encontraron resultados para su búsqueda.</td>
                         </tr>
                     </tbody>
                 </table>
@@ -61,16 +128,56 @@
 </div>
 
 <script>
-// El mismo script de siempre para búsqueda
 document.addEventListener('DOMContentLoaded', function() {
-    const searchInput = document.getElementById('searchInput'), tableBody = document.getElementById('horariosTableBody'), rows = tableBody.getElementsByClassName('schedule-row'), noResultsRow = document.getElementById('noResultsRow');
-    searchInput.addEventListener('keyup', function() {
-        const filter = searchInput.value.toLowerCase(); let visibleRows = 0;
-        for (let row of rows) {
-            const nameCell = row.getElementsByClassName('row-name')[0];
-            if (nameCell && (nameCell.textContent || nameCell.innerText).toLowerCase().indexOf(filter) > -1) { row.style.display = ""; visibleRows++; } else { row.style.display = "none"; }
+    // Inicializar tooltips
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.map(function (tooltipTriggerEl) { return new bootstrap.Tooltip(tooltipTriggerEl); });
+    
+    // Elementos DOM
+    const searchInput = document.getElementById('searchInput');
+    const cuatriSelect = document.getElementById('cuatrimestreSelect');
+    const btnLimpiar = document.getElementById('btnLimpiar');
+    const tableBody = document.getElementById('horariosTableBody');
+    const rows = tableBody.querySelectorAll('.schedule-row'); // Use querySelectorAll for static list initially or dynamic?
+    // Note: getElementsByClassName is live, querySelectorAll is static. Since we don't add rows, static is fine.
+    // Actually consistent with admin script:
+    const rowsList = tableBody.getElementsByClassName('schedule-row'); 
+    
+    const noResultsRow = document.getElementById('noResultsRow');
+    const contadorGrupos = document.getElementById('contadorGrupos');
+    
+    function filtrarTabla() {
+        const searchText = searchInput.value.toLowerCase();
+        const cuatriVal = cuatriSelect.value;
+        let visibleRows = 0;
+        
+        for (let row of rowsList) {
+            const nameCell = row.querySelector('.row-name');
+            const rowText = (nameCell.textContent || nameCell.innerText).toLowerCase();
+            const rowCuatri = row.getAttribute('data-cuatrimestre');
+            
+            const matchSearch = rowText.indexOf(searchText) > -1;
+            const matchCuatri = (cuatriVal === "") || (rowCuatri === cuatriVal);
+            
+            if (matchSearch && matchCuatri) {
+                row.style.display = "";
+                visibleRows++;
+            } else {
+                row.style.display = "none";
+            }
         }
-        noResultsRow.style.display = (visibleRows === 0 && rows.length > 0) ? "" : "none";
+        
+        contadorGrupos.textContent = visibleRows;
+        noResultsRow.style.display = (visibleRows === 0 && rowsList.length > 0) ? "" : "none";
+    }
+    
+    searchInput.addEventListener('keyup', filtrarTabla);
+    cuatriSelect.addEventListener('change', filtrarTabla);
+    
+    btnLimpiar.addEventListener('click', function() {
+        searchInput.value = '';
+        cuatriSelect.value = '';
+        filtrarTabla();
     });
 });
 </script>

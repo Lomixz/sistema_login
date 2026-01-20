@@ -1,87 +1,306 @@
 {% extends "base.html" %}
 
-{% block title %}Horarios Académicos - {{ carrera.nombre }}{% endblock %}
+{% block title %}Horarios Académicos - {{ carrera.nombre if carrera else 'Todos' }}{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
+<div class="container-fluid py-4">
     <div class="row">
         <div class="col-12">
-            <div class="card">
-                <div class="card-header">
-                    <h3 class="card-title">
-                        <i class="fas fa-calendar-alt"></i> Horarios Académicos de {{ carrera.nombre }}
-                    </h3>
-                    <div class="card-tools">
-                        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary btn-sm">
-                            <i class="fas fa-arrow-left"></i> Volver al Dashboard
+            
+            <!-- Encabezado -->
+            <div class="card border-0 shadow-sm mb-4 overflow-hidden">
+                <div class="card-header py-3" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <div class="text-white">
+                            <h4 class="mb-1">
+                                <i class="fas fa-calendar-alt me-2"></i>
+                                Horarios Académicos
+                            </h4>
+                            <p class="mb-0 opacity-75">
+                                <i class="fas fa-graduation-cap me-2"></i>
+                                {{ carrera.nombre if carrera else 'Todas las carreras' }}
+                            </p>
+                        </div>
+                        <a href="{{ url_for('dashboard') }}" class="btn btn-light">
+                            <i class="fas fa-arrow-left me-2"></i>Volver al Dashboard
                         </a>
                     </div>
                 </div>
-                <div class="card-body">
-                    {% if horarios_academicos %}
-                        <div class="table-responsive">
-                            <table class="table table-bordered table-striped">
-                                <thead class="table-dark">
-                                    <tr>
-                                        <th style="color: white;">Profesor</th>
-                                        <th style="color: white;">Materia</th>
-                                        <th style="color: white;">Día</th>
-                                        <th style="color: white;">Horario</th>
-                                        <th style="color: white;">Ciclo Escolar</th>
-                                        <th style="color: white;">Acciones</th>
-                                    </tr>
-                                </thead>
-                                <tbody style="background-color: white;">
-                                    {% for horario in horarios_academicos %}
-                                    <tr>
-                                        <td style="color: black;">{{ horario.profesor.get_nombre_completo() }}</td>
-                                        <td style="color: black;">{{ horario.materia.nombre }}</td>
-                                        <td>
-                                            {% if horario.dia_semana == 'lunes' %}
-                                                <span class="badge badge-primary" style="color: black; font-weight: bold;">Lunes</span>
-                                            {% elif horario.dia_semana == 'martes' %}
-                                                <span class="badge badge-success" style="color: black; font-weight: bold;">Martes</span>
-                                            {% elif horario.dia_semana == 'miercoles' %}
-                                                <span class="badge badge-info" style="color: black; font-weight: bold;">Miércoles</span>
-                                            {% elif horario.dia_semana == 'jueves' %}
-                                                <span class="badge badge-warning" style="color: black; font-weight: bold;">Jueves</span>
-                                            {% elif horario.dia_semana == 'viernes' %}
-                                                <span class="badge badge-danger" style="color: black; font-weight: bold;">Viernes</span>
-                                            {% elif horario.dia_semana == 'sabado' %}
-                                                <span class="badge badge-secondary" style="color: black; font-weight: bold;">Sábado</span>
-                                            {% endif %}
-                                        </td>
-                                        <td style="color: black;">
-                                            {{ horario.horario.nombre }}<br>
-                                            <small class="text-muted">
-                                                {{ horario.horario.get_hora_inicio_str() }} - {{ horario.horario.get_hora_fin_str() }}
-                                            </small>
-                                        </td>
-                                        <td style="color: black;">
-                                            <span class="badge badge-info" style="color: black; font-weight: bold;">{{ horario.get_periodo_academico_display() }}</span>
-                                            <br>
-                                            <small style="color: black; font-weight: bold;">{{ horario.get_ciclo_escolar()['nombre'] }}</small>
-                                        </td>
-                                        <td>
-                                            <a href="{{ url_for('editar_horario_academico_jefe', id=horario.id) }}" 
-                                               class="btn btn-sm btn-primary" title="Editar">
-                                                <i class="fas fa-edit"></i>
-                                            </a>
-                                        </td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
+                
+                <!-- Estadísticas -->
+                <div class="card-body bg-light py-3">
+                    <div class="row text-center">
+                        <div class="col-md-3 col-6 border-end">
+                            <small class="text-muted d-block mb-1">Total Clases</small>
+                            <h4 class="mb-0 text-primary">{{ horarios_academicos|length }}</h4>
                         </div>
+                        <div class="col-md-3 col-6 border-end">
+                            <small class="text-muted d-block mb-1">Grupos Activos</small>
+                            <h4 class="mb-0 text-success">{{ grupos_unicos|length }}</h4>
+                        </div>
+                        <div class="col-md-3 col-6 border-end">
+                            <small class="text-muted d-block mb-1">Profesores</small>
+                            <h4 class="mb-0 text-info">{{ horarios_academicos|map(attribute='profesor_id')|unique|list|length }}</h4>
+                        </div>
+                        <div class="col-md-3 col-6">
+                            <small class="text-muted d-block mb-1">Materias</small>
+                            <h4 class="mb-0 text-warning">{{ horarios_academicos|map(attribute='materia_id')|unique|list|length }}</h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Navegación de Vistas -->
+            <ul class="nav nav-pills mb-4" id="pills-tab" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active rounded-pill px-4" id="pills-grupos-tab" data-bs-toggle="pill" 
+                            data-bs-target="#pills-grupos" type="button" role="tab">
+                        <i class="fas fa-users me-2"></i>Vista por Grupos
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link rounded-pill px-4" id="pills-dias-tab" data-bs-toggle="pill" 
+                            data-bs-target="#pills-dias" type="button" role="tab">
+                        <i class="fas fa-calendar-day me-2"></i>Vista por Días
+                    </button>
+                </li>
+            </ul>
+
+            <div class="tab-content" id="pills-tabContent">
+                
+                <!-- VISTA POR GRUPOS -->
+                <div class="tab-pane fade show active" id="pills-grupos" role="tabpanel">
+                    
+                    {% if grupos_unicos %}
+                        {% for grupo in grupos_unicos %}
+                        <div class="card border-0 shadow-sm mb-4">
+                            <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center cursor-pointer" 
+                                 data-bs-toggle="collapse" data-bs-target="#collapse-grupo-{{ loop.index }}">
+                                <h5 class="mb-0 text-primary">
+                                    <i class="fas fa-layer-group me-2"></i>Grupo: <strong>{{ grupo }}</strong>
+                                </h5>
+                                <i class="fas fa-chevron-down text-muted"></i>
+                            </div>
+                            
+                            <div class="collapse show" id="collapse-grupo-{{ loop.index }}">
+                                <div class="card-body p-0">
+                                    <div class="table-responsive">
+                                        <table class="table table-bordered mb-0 text-center align-middle">
+                                            <thead class="bg-light">
+                                                <tr>
+                                                    <th style="width: 16.6%">Lunes</th>
+                                                    <th style="width: 16.6%">Martes</th>
+                                                    <th style="width: 16.6%">Miércoles</th>
+                                                    <th style="width: 16.6%">Jueves</th>
+                                                    <th style="width: 16.6%">Viernes</th>
+                                                    <th style="width: 16.6%">Sábado</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr>
+                                                    {% set dias = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'] %}
+                                                    {% for dia in dias %}
+                                                    <td class="align-top p-2">
+                                                        {% set clases_grupo = horarios_academicos|selectattr('grupo', 'equalto', grupo)|selectattr('dia_semana', 'equalto', dia)|sort(attribute='horario.hora_inicio')|list %}
+                                                        
+                                                        {% if clases_grupo %}
+                                                            {% for clase in clases_grupo %}
+                                                            <div class="card border mb-2 h-100 shadow-sm clase-card hover-effect">
+                                                                <div class="card-body p-2 text-start">
+                                                                    <div class="badge bg-primary mb-1">
+                                                                        {{ clase.horario.get_hora_inicio_str() }} - {{ clase.horario.get_hora_fin_str() }}
+                                                                    </div>
+                                                                    <h6 class="card-title fs-6 fw-bold mb-1 text-dark" style="font-size: 0.9rem;">
+                                                                        {{ clase.materia.nombre }}
+                                                                    </h6>
+                                                                    <p class="card-text text-muted small mb-1">
+                                                                        <i class="fas fa-user-circle me-1"></i>{{ clase.profesor.nombre }} {{ clase.profesor.apellido_paterno }}
+                                                                    </p>
+                                                                    <div class="d-flex justify-content-end mt-2">
+                                                                        <a href="{{ url_for('editar_horario_academico_jefe', id=clase.id) }}" 
+                                                                           class="btn btn-xs btn-outline-primary rounded-circle" title="Editar">
+                                                                            <i class="fas fa-pencil-alt" style="font-size: 0.7rem;"></i>
+                                                                        </a>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            {% endfor %}
+                                                        {% else %}
+                                                            <span class="text-muted small fst-italic">- Sin clases -</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    {% endfor %}
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
                     {% else %}
-                        <div class="alert alert-info">
-                            <i class="fas fa-info-circle"></i> No hay horarios académicos registrados para esta carrera.
+                        <div class="alert alert-info text-center py-4">
+                            <i class="fas fa-info-circle fa-2x mb-3"></i>
+                            <p class="mb-0">No se encontraron grupos con horarios asignados.</p>
                         </div>
                     {% endif %}
                 </div>
+
+                <!-- VISTA POR DÍAS (LEGACY/ALTERNATIVA) -->
+                <div class="tab-pane fade" id="pills-dias" role="tabpanel">
+                    <!-- Filtros Rápidos -->
+                    <div class="card border-0 shadow-sm mb-4">
+                        <div class="card-body py-3">
+                            <div class="d-flex flex-wrap gap-2 align-items-center">
+                                <span class="fw-semibold me-2">
+                                    <i class="fas fa-filter text-primary me-1"></i> Filtros:
+                                </span>
+                                <button class="btn btn-outline-primary btn-sm filter-btn active" data-filter="all">
+                                    Todos
+                                </button>
+                                {% for dia in ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'] %}
+                                    <button class="btn btn-outline-secondary btn-sm filter-btn" data-filter="{{ dia }}">
+                                        {{ dia|capitalize }}
+                                    </button>
+                                {% endfor %}
+                                <div class="ms-auto d-flex gap-2">
+                                    <select class="form-select form-select-sm" id="filtro-cuatrimestre" style="width: auto;">
+                                        <option value="all">Todos los Cuatrimestres</option>
+                                        {% set cuatrimestres = horarios_academicos|map(attribute='materia.cuatrimestre')|unique|sort|list %}
+                                        {% for cuatri in cuatrimestres %}
+                                            <option value="{{ cuatri }}">{{ cuatri }}° Cuatrimestre</option>
+                                        {% endfor %}
+                                    </select>
+                                    <input type="text" class="form-control form-control-sm" id="buscar-horario" 
+                                           placeholder="Buscar..." style="width: 200px;">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row" id="horarios-container">
+                        {% set dias_map = {'lunes': 'Lunes', 'martes': 'Martes', 'miercoles': 'Miércoles', 'jueves': 'Jueves', 'viernes': 'Viernes', 'sabado': 'Sábado'} %}
+                        {% set colores = {'lunes': 'primary', 'martes': 'success', 'miercoles': 'info', 'jueves': 'warning', 'viernes': 'danger', 'sabado': 'secondary'} %}
+                        
+                        {% for dia, nombre_dia in dias_map.items() %}
+                            {% set horarios_dia = horarios_academicos|selectattr('dia_semana', 'equalto', dia)|list %}
+                            {% if horarios_dia %}
+                            <div class="col-lg-6 col-xl-4 mb-4 dia-card" data-dia="{{ dia }}">
+                                <div class="card border-0 shadow-sm h-100">
+                                    <div class="card-header bg-{{ colores[dia] }} text-white py-2">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <h6 class="mb-0">{{ nombre_dia }}</h6>
+                                            <span class="badge bg-white text-dark">{{ horarios_dia|length }}</span>
+                                        </div>
+                                    </div>
+                                    <div class="list-group list-group-flush">
+                                        {% for horario in horarios_dia %}
+                                        <div class="list-group-item horario-item p-3 layer-hover" 
+                                             data-texto="{{ horario.materia.nombre|lower }} {{ horario.profesor.nombre|lower }} {{ horario.grupo|lower }}"
+                                             data-cuatrimestre="{{ horario.materia.cuatrimestre }}">
+                                            <div class="d-flex justify-content-between">
+                                                <div>
+                                                    <small class="text-{{ colores[dia] }} fw-bold">
+                                                        {{ horario.horario.get_hora_inicio_str() }} - {{ horario.horario.get_hora_fin_str() }}
+                                                    </small>
+                                                    <h6 class="mb-1 text-dark">{{ horario.materia.nombre }}</h6>
+                                                    <small class="text-muted d-block">
+                                                        <i class="fas fa-user me-1"></i>{{ horario.profesor.get_nombre_completo() }}
+                                                    </small>
+                                                    <span class="badge bg-light text-dark border mt-1">
+                                                        Grupo {{ horario.grupo }}
+                                                    </span>
+                                                </div>
+                                                <div>
+                                                    <a href="{{ url_for('editar_horario_academico_jefe', id=horario.id) }}" 
+                                                       class="btn btn-sm btn-light text-primary">
+                                                        <i class="fas fa-edit"></i>
+                                                    </a>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
             </div>
+            
         </div>
     </div>
 </div>
+
+<style>
+    .cursor-pointer { cursor: pointer; }
+    .btn-xs { padding: 0.1rem 0.3rem; font-size: 0.75rem; }
+    .hover-effect:hover { transform: translateY(-2px); box-shadow: 0 .5rem 1rem rgba(0,0,0,.15)!important; transition: all .2s; }
+    .dia-hidden { display: none !important; }
+    .horario-hidden { display: none !important; }
+    
+    .nav-pills .nav-link.active {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const filterBtns = document.querySelectorAll('.filter-btn');
+    const searchInput = document.getElementById('buscar-horario');
+    const semesterSelect = document.getElementById('filtro-cuatrimestre');
+    let activeDay = 'all';
+
+    function applyFilters() {
+        const searchTerm = searchInput.value.toLowerCase();
+        const selectedSemester = semesterSelect.value;
+        
+        // 1. Filtrar tarjetas de Días
+        const diaCards = document.querySelectorAll('.dia-card');
+        diaCards.forEach(card => {
+            if (activeDay === 'all' || card.dataset.dia === activeDay) {
+                card.classList.remove('dia-hidden');
+            } else {
+                card.classList.add('dia-hidden');
+            }
+        });
+
+        // 2. Filtrar items de horarios dentro de las tarjetas visibles
+        const items = document.querySelectorAll('.horario-item');
+        items.forEach(item => {
+            const textMatch = item.dataset.texto.includes(searchTerm);
+            const semesterMatch = selectedSemester === 'all' || item.dataset.cuatrimestre === selectedSemester;
+            
+            if (textMatch && semesterMatch) {
+                item.classList.remove('horario-hidden');
+            } else {
+                item.classList.add('horario-hidden');
+            }
+        });
+
+        // 3. Ocultar tarjetas de días que se quedaron sin items visibles después del filtrado
+        document.querySelectorAll('.dia-card:not(.dia-hidden)').forEach(card => {
+            const hasVisibleItems = card.querySelectorAll('.horario-item:not(.horario-hidden)').length > 0;
+            // Si el día está activo pero no tiene items que coincidan con búsqueda/cuatrimestre, lo ocultamos visualmente
+            // Pero mantenemos la clase 'dia-hidden' para la lógica de botones separada
+            card.style.display = hasVisibleItems ? '' : 'none';
+        });
+    }
+
+    // Event Listeners
+    filterBtns.forEach(btn => {
+        btn.addEventListener('click', function() {
+            filterBtns.forEach(b => b.classList.remove('active', 'btn-primary', 'btn-secondary'));
+            this.classList.add('active', 'btn-primary');
+            activeDay = this.dataset.filter;
+            applyFilters();
+        });
+    });
+
+    semesterSelect.addEventListener('change', applyFilters);
+    searchInput.addEventListener('input', applyFilters);
+});
+</script>
 
 {% endblock %}

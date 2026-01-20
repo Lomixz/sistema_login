@@ -61,8 +61,7 @@
                                             </small>
                                         </dd>
                                         
-                                        <dt class="col-sm-5">Aula:</dt>
-                                        <dd class="col-sm-7">{{ horario_academico.aula or 'No asignada' }}</dd>
+
                                     </dl>
                                 </div>
                             </div>
@@ -98,16 +97,11 @@
                                             {% endfor %}
                                         </div>
                                     {% endif %}
-                                    <small class="form-text text-muted">Permite tener múltiples grupos de la misma materia</small>
+                                    <small class="form-text text-muted">Escriba el código del grupo (Ej: 1SC1, 7MSC1)</small>
                                 </div>
                             </div>
                             
-                            <div class="col-md-4">
-                                <div class="form-group">
-                                    {{ form.aula.label(class="form-label") }}
-                                    {{ form.aula(class="form-control") }}
-                                </div>
-                            </div>
+
                         </div>
                         
                         <div class="form-group">

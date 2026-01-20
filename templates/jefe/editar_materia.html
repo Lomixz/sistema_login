@@ -3,125 +3,215 @@
 {% block title %}Editar Materia - {{ materia.nombre }}{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <div class="row">
-        <div class="col-12">
-            <div class="card">
-                <div class="card-header">
-                    <h3 class="card-title">
-                        <i class="fas fa-edit"></i> Editar Materia: {{ materia.nombre }}
-                    </h3>
-                    <div class="card-tools">
-                        <a href="{{ url_for('gestionar_materias_jefe') }}" class="btn btn-secondary btn-sm">
-                            <i class="fas fa-arrow-left"></i> Volver
+<div class="container-fluid py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-10 col-xl-8">
+            
+            <!-- Encabezado con Info Actual -->
+            <div class="card border-0 shadow-sm mb-4 overflow-hidden">
+                <div class="card-header py-3" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="text-white">
+                            <h4 class="mb-1">
+                                <i class="fas fa-edit me-2"></i>
+                                Editar Materia
+                            </h4>
+                            <p class="mb-0 opacity-75">
+                                <i class="fas fa-book me-2"></i>{{ materia.nombre }}
+                            </p>
+                        </div>
+                        <a href="{{ url_for('gestionar_materias_jefe') }}" class="btn btn-light">
+                            <i class="fas fa-arrow-left me-2"></i>Volver
                         </a>
                     </div>
                 </div>
-                <div class="card-body">
+                
+                <!-- Información Actual de Referencia -->
+                <div class="card-body bg-light py-3">
+                    <div class="row text-center">
+                        <div class="col-md-3 col-6 mb-2 mb-md-0">
+                            <div class="d-flex flex-column">
+                                <small class="text-muted">Código Actual</small>
+                                <strong class="text-primary fs-5">{{ materia.codigo }}</strong>
+                            </div>
+                        </div>
+                        <div class="col-md-3 col-6 mb-2 mb-md-0">
+                            <div class="d-flex flex-column">
+                                <small class="text-muted">Cuatrimestre</small>
+                                <strong class="fs-5">{{ materia.cuatrimestre }}</strong>
+                            </div>
+                        </div>
+                        <div class="col-md-3 col-6">
+                            <div class="d-flex flex-column">
+                                <small class="text-muted">Créditos</small>
+                                <strong class="fs-5">{{ materia.creditos }}</strong>
+                            </div>
+                        </div>
+                        <div class="col-md-3 col-6">
+                            <div class="d-flex flex-column">
+                                <small class="text-muted">Horas/Semana</small>
+                                <strong class="fs-5">{{ materia.horas_semanales }}</strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Formulario de Edición -->
+            <div class="card border-0 shadow">
+                <div class="card-header bg-white py-3 border-bottom">
+                    <h5 class="mb-0">
+                        <i class="fas fa-pencil-alt me-2 text-primary"></i>
+                        Modificar Información
+                    </h5>
+                </div>
+                <div class="card-body p-4">
                     <form method="post">
                         {{ form.hidden_tag() }}
                         
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    {{ form.nombre.label(class="form-label") }}
-                                    {{ form.nombre(class="form-control" + (" is-invalid" if form.nombre.errors else "")) }}
+                        <!-- Nombre y Código -->
+                        <div class="row g-4 mb-4">
+                            <div class="col-md-8">
+                                <div class="form-floating">
+                                    {{ form.nombre(class="form-control form-control-lg" + (" is-invalid" if form.nombre.errors else ""), placeholder="Nombre de la materia") }}
+                                    <label for="nombre">
+                                        <i class="fas fa-book me-2"></i>Nombre de la Materia
+                                    </label>
                                     {% if form.nombre.errors %}
                                         <div class="invalid-feedback">
-                                            {% for error in form.nombre.errors %}
-                                                <span>{{ error }}</span>
-                                            {% endfor %}
+                                            {% for error in form.nombre.errors %}{{ error }}{% endfor %}
                                         </div>
                                     {% endif %}
                                 </div>
                             </div>
-                            
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    {{ form.codigo.label(class="form-label") }}
-                                    {{ form.codigo(class="form-control" + (" is-invalid" if form.codigo.errors else "")) }}
+                            <div class="col-md-4">
+                                <div class="form-floating">
+                                    {{ form.codigo(class="form-control form-control-lg" + (" is-invalid" if form.codigo.errors else ""), placeholder="Código", style="text-transform: uppercase;") }}
+                                    <label for="codigo">
+                                        <i class="fas fa-hashtag me-2"></i>Código
+                                    </label>
                                     {% if form.codigo.errors %}
                                         <div class="invalid-feedback">
-                                            {% for error in form.codigo.errors %}
-                                                <span>{{ error }}</span>
-                                            {% endfor %}
+                                            {% for error in form.codigo.errors %}{{ error }}{% endfor %}
                                         </div>
                                     {% endif %}
                                 </div>
                             </div>
                         </div>
                         
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    {{ form.cuatrimestre.label(class="form-label") }}
-                                    {{ form.cuatrimestre(class="form-control" + (" is-invalid" if form.cuatrimestre.errors else "")) }}
-                                    {% if form.cuatrimestre.errors %}
-                                        <div class="invalid-feedback">
-                                            {% for error in form.cuatrimestre.errors %}
-                                                <span>{{ error }}</span>
-                                            {% endfor %}
-                                        </div>
-                                    {% endif %}
-                                </div>
-                            </div>
-                            
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    {{ form.creditos.label(class="form-label") }}
-                                    {{ form.creditos(class="form-control" + (" is-invalid" if form.creditos.errors else "")) }}
-                                    {% if form.creditos.errors %}
-                                        <div class="invalid-feedback">
-                                            {% for error in form.creditos.errors %}
-                                                <span>{{ error }}</span>
-                                            {% endfor %}
-                                        </div>
-                                    {% endif %}
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="form-group">
-                                    {{ form.horas_semanales.label(class="form-label") }}
-                                    <div class="input-group">
-                                        {{ form.horas_semanales(class="form-control" + (" is-invalid" if form.horas_semanales.errors else "")) }}
-                                        <span class="input-group-text">h/semana</span>
+                        <!-- Cuatrimestre, Créditos y Horas -->
+                        <div class="row g-4 mb-4">
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold">
+                                    <i class="fas fa-layer-group me-2 text-primary"></i>Cuatrimestre
+                                </label>
+                                {{ form.cuatrimestre(class="form-select form-select-lg" + (" is-invalid" if form.cuatrimestre.errors else "")) }}
+                                {% if form.cuatrimestre.errors %}
+                                    <div class="invalid-feedback">
+                                        {% for error in form.cuatrimestre.errors %}{{ error }}{% endfor %}
                                     </div>
-                                    {% if form.horas_semanales.errors %}
-                                        <div class="invalid-feedback d-block">
-                                            {% for error in form.horas_semanales.errors %}
-                                                <span>{{ error }}</span>
-                                            {% endfor %}
-                                        </div>
-                                    {% endif %}
-                                    <small class="text-muted">Total de horas que se impartirán por semana</small>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold">
+                                    <i class="fas fa-star me-2 text-warning"></i>Créditos
+                                </label>
+                                {{ form.creditos(class="form-select form-select-lg" + (" is-invalid" if form.creditos.errors else "")) }}
+                                {% if form.creditos.errors %}
+                                    <div class="invalid-feedback">
+                                        {% for error in form.creditos.errors %}{{ error }}{% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold">
+                                    <i class="fas fa-clock me-2 text-success"></i>Horas Semanales
+                                </label>
+                                <div class="input-group input-group-lg">
+                                    {{ form.horas_semanales(class="form-control" + (" is-invalid" if form.horas_semanales.errors else "")) }}
+                                    <span class="input-group-text bg-success text-white">h/semana</span>
                                 </div>
-                            </div>
-                            
-                            <div class="col-md-6">
+                                {% if form.horas_semanales.errors %}
+                                    <div class="invalid-feedback d-block">
+                                        {% for error in form.horas_semanales.errors %}{{ error }}{% endfor %}
+                                    </div>
+                                {% endif %}
                             </div>
                         </div>
                         
-                        <div class="form-group">
-                            {{ form.descripcion.label(class="form-label") }}
-                            {{ form.descripcion(class="form-control", rows=3) }}
+                        <!-- Descripción -->
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold">
+                                <i class="fas fa-align-left me-2 text-info"></i>Descripción
+                            </label>
+                            {{ form.descripcion(class="form-control", rows=4, placeholder="Descripción opcional de la materia, objetivos, contenidos...") }}
+                            <small class="text-muted">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Describe brevemente el contenido y objetivos de esta materia (opcional)
+                            </small>
                         </div>
                         
-                        <div class="form-group">
-                            <button type="submit" class="btn btn-primary">
-                                <i class="fas fa-save"></i> Guardar Cambios
-                            </button>
-                            <a href="{{ url_for('gestionar_materias_jefe') }}" class="btn btn-secondary">
-                                <i class="fas fa-times"></i> Cancelar
+                        <!-- Botones de Acción -->
+                        <div class="d-flex justify-content-between align-items-center pt-4 border-top">
+                            <a href="{{ url_for('gestionar_materias_jefe') }}" class="btn btn-outline-secondary btn-lg">
+                                <i class="fas fa-times me-2"></i>Cancelar
                             </a>
+                            <button type="submit" class="btn btn-primary btn-lg shadow">
+                                <i class="fas fa-save me-2"></i>Guardar Cambios
+                            </button>
                         </div>
                     </form>
                 </div>
             </div>
+            
+            <!-- Información Adicional -->
+            <div class="card border-0 shadow-sm mt-4">
+                <div class="card-body py-3">
+                    <div class="row text-center text-muted small">
+                        <div class="col-md-4">
+                            <i class="fas fa-info-circle me-1"></i>
+                            ID de Materia: <strong>{{ materia.id }}</strong>
+                        </div>
+                        <div class="col-md-4">
+                            <i class="fas fa-graduation-cap me-1"></i>
+                            Carrera: <strong>{{ materia.carrera.nombre if materia.carrera else 'Sin asignar' }}</strong>
+                        </div>
+                        <div class="col-md-4">
+                            <i class="fas fa-users me-1"></i>
+                            Profesores asignados: <strong>{{ materia.profesores|length }}</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
         </div>
     </div>
 </div>
+
+<style>
+    .form-floating > .form-control:focus ~ label,
+    .form-floating > .form-control:not(:placeholder-shown) ~ label {
+        color: #667eea;
+    }
+    
+    .form-control:focus, .form-select:focus {
+        border-color: #667eea;
+        box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+    }
+    
+    .card {
+        transition: all 0.3s ease;
+    }
+    
+    .btn-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border: none;
+    }
+    
+    .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+</style>
 
 {% endblock %}

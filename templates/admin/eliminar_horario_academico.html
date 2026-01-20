@@ -49,14 +49,7 @@
                             {{ horario_academico.get_dia_display() }}<br>
                             {{ horario_academico.get_hora_inicio_str() }} - {{ horario_academico.get_hora_fin_str() }}
                         </div>
-                        <div class="col-md-3">
-                            <strong>Aula:</strong><br>
-                            {% if horario_academico.aula %}
-                                {{ horario_academico.aula }}
-                            {% else %}
-                                <span class="text-muted">Sin asignar</span>
-                            {% endif %}
-                        </div>
+
                     </div>
                 </div>
             </div>

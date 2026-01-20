@@ -17,9 +17,9 @@
                     Volver al Dashboard
                 </a>
                 {% else %}
-                <a href="{{ url_for('profesor_panel') }}" class="btn btn-secondary">
-                    <i class="fas fa-arrow-left me-1"></i>
-                    Volver al Panel
+                <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">
+                    <i class="fas fa-home me-1"></i>
+                    Volver al Dashboard
                 </a>
                 {% endif %}
             </div>
@@ -64,7 +64,7 @@
             <div class="card-body">
                 <div class="d-flex justify-content-between">
                     <div>
-                        <h4 class="mb-0">{{ current_user.carrera.nombre if current_user.carrera else 'Sin asignar' }}</h4>
+                        <h4 class="mb-0">{% if current_user.carreras|length > 0 %}{{ current_user.carreras|map(attribute='nombre')|join(', ') }}{% else %}Sin asignar{% endif %}</h4>
                         <p class="mb-0">Carrera Asignada</p>
                     </div>
                     <div class="align-self-center">
@@ -92,12 +92,12 @@
                         <table class="table table-bordered table-hover">
                             <thead class="table-dark">
                                 <tr>
-                                    <th width="15%">Día</th>
+                                    <th width="12%">Día</th>
                                     <th width="15%">Hora</th>
-                                    <th width="20%">Materia</th>
-                                    <th width="15%">Código</th>
-                                    <th width="15%">Aula</th>
-                                    <th width="20%">Turno</th>
+                                    <th width="25%">Materia</th>
+                                    <th width="12%">Código</th>
+                                    <th width="18%">Grupo</th>
+                                    <th width="18%">Turno</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -123,10 +123,10 @@
                                                 <span class="badge bg-secondary">{{ horario.get_materia_codigo() }}</span>
                                             </td>
                                             <td>
-                                                {% if horario.aula %}
-                                                    <span class="badge bg-info">{{ horario.aula }}</span>
+                                                {% if horario.grupo %}
+                                                    <span class="badge bg-dark">{{ horario.grupo }}</span>
                                                 {% else %}
-                                                    <span class="text-muted">Sin asignar</span>
+                                                    <span class="text-muted">-</span>
                                                 {% endif %}
                                             </td>
                                             <td>
@@ -137,7 +137,6 @@
                                     {% endif %}
                                 {% endfor %}
                                 
-                                <!-- Verificar si no hay horarios -->
                                 {% if total_horas == 0 %}
                                 <tr>
                                     <td colspan="6" class="text-center text-muted py-4">

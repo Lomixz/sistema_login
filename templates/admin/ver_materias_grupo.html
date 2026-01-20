@@ -3,255 +3,220 @@
 {% block title %}Materias del Grupo {{ grupo.codigo }}{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
+<div class="container-fluid py-4">
     <div class="row">
         <div class="col-12">
-            <div class="card">
-                <div class="card-header">
-                    <h3 class="card-title">
-                        <i class="fas fa-book-open"></i> Materias del Grupo {{ grupo.codigo }}
-                    </h3>
-                    <div class="card-tools">
-                        <a href="{{ url_for('gestionar_materias_grupo', id=grupo.id) }}" class="btn btn-warning btn-sm">
-                            <i class="fas fa-edit"></i> Modificar Materias
-                        </a>
-                        <a href="{{ url_for('gestionar_grupos') }}" class="btn btn-secondary btn-sm">
-                            <i class="fas fa-arrow-left"></i> Volver
-                        </a>
+            
+            <!-- Encabezado -->
+            <div class="card border-0 shadow-sm mb-4 overflow-hidden">
+                <div class="card-header py-3" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <div class="text-white">
+                            <h4 class="mb-1">
+                                <i class="fas fa-book-open me-2"></i>
+                                Materias del Grupo {{ grupo.codigo }}
+                            </h4>
+                            <p class="mb-0 opacity-75">
+                                <i class="fas fa-graduation-cap me-2"></i>
+                                {{ grupo.carrera.nombre }}
+                            </p>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <a href="{{ url_for('gestionar_materias_grupo', id=grupo.id) }}" class="btn btn-warning btn-sm shadow-sm">
+                                <i class="fas fa-edit me-1"></i> Modificar Materias
+                            </a>
+                            <a href="{{ url_for('gestionar_grupos') }}" class="btn btn-light btn-sm shadow-sm">
+                                <i class="fas fa-arrow-left me-1"></i> Volver
+                            </a>
+                        </div>
                     </div>
                 </div>
-                <div class="card-body">
-                    <!-- Información del Grupo -->
+                
+                <!-- Estadísticas Resumidas -->
+                <div class="card-body bg-light py-3">
                     {% set resumen = grupo.get_resumen_completo() %}
-                    <div class="row mb-4 g-3">
-                        <div class="col-lg-2 col-md-4 col-sm-6">
-                            <div class="card text-center shadow-sm" style="border-radius: 15px; border-left: 5px solid #17a2b8;">
-                                <div class="card-body py-3">
-                                    <div class="mb-2">
-                                        <i class="fas fa-users-class fa-2x text-info"></i>
-                                    </div>
-                                    <h6 class="card-subtitle mb-2 text-muted small">Código Grupo</h6>
-                                    <h4 class="card-title mb-0 text-dark fw-bold">{{ grupo.codigo }}</h4>
-                                </div>
-                            </div>
+                    <div class="row text-center">
+                        <div class="col-md-3 col-6 border-end">
+                            <small class="text-muted d-block mb-1">Turno</small>
+                            <h5 class="mb-0 text-dark">
+                                <i class="fas fa-{{ 'sun' if grupo.turno == 'M' else 'moon' }} text-warning me-1"></i>
+                                {{ grupo.get_turno_display() }}
+                            </h5>
                         </div>
-                        <div class="col-lg-2 col-md-4 col-sm-6">
-                            <div class="card text-center shadow-sm" style="border-radius: 15px; border-left: 5px solid #28a745;">
-                                <div class="card-body py-3">
-                                    <div class="mb-2">
-                                        <i class="fas fa-graduation-cap fa-2x text-success"></i>
-                                    </div>
-                                    <h6 class="card-subtitle mb-2 text-muted small">Carrera</h6>
-                                    <h4 class="card-title mb-0 text-dark fw-bold">{{ grupo.carrera.codigo }}</h4>
-                                </div>
-                            </div>
+                        <div class="col-md-3 col-6 border-end">
+                            <small class="text-muted d-block mb-1">Materias</small>
+                            <h5 class="mb-0 text-primary">{{ resumen.materias_count }}</h5>
                         </div>
-                        <div class="col-lg-2 col-md-4 col-sm-6">
-                            <div class="card text-center shadow-sm" style="border-radius: 15px; border-left: 5px solid #ffc107;">
-                                <div class="card-body py-3">
-                                    <div class="mb-2">
-                                        <i class="fas fa-{{ 'sun' if grupo.turno == 'M' else 'moon' }} fa-2x text-warning"></i>
-                                    </div>
-                                    <h6 class="card-subtitle mb-2 text-muted small">Turno</h6>
-                                    <h4 class="card-title mb-0 text-dark fw-bold">{{ grupo.get_turno_display() }}</h4>
-                                </div>
-                            </div>
+                        <div class="col-md-3 col-6 border-end">
+                            <small class="text-muted d-block mb-1">Profesores</small>
+                            <h5 class="mb-0 text-info">{{ resumen.profesores_count }}</h5>
                         </div>
-                        <div class="col-lg-2 col-md-4 col-sm-6">
-                            <div class="card text-center shadow-sm" style="border-radius: 15px; border-left: 5px solid #007bff;">
-                                <div class="card-body py-3">
-                                    <div class="mb-2">
-                                        <i class="fas fa-book fa-2x text-primary"></i>
-                                    </div>
-                                    <h6 class="card-subtitle mb-2 text-muted small">Materias</h6>
-                                    <h4 class="card-title mb-0 text-dark fw-bold">{{ resumen.materias_count }}</h4>
+                        <div class="col-md-3 col-6">
+                            <small class="text-muted d-block mb-1">Completitud</small>
+                            <div class="d-flex align-items-center justify-content-center gap-2">
+                                <div class="progress flex-grow-1" style="height: 6px; max-width: 100px;">
+                                    <div class="progress-bar bg-{{ resumen.estado.clase }}" role="progressbar" 
+                                         style="width: {{ resumen.completitud }}%"></div>
                                 </div>
-                            </div>
-                        </div>
-                        <div class="col-lg-2 col-md-4 col-sm-6">
-                            <div class="card text-center shadow-sm" style="border-radius: 15px; border-left: 5px solid #6c757d;">
-                                <div class="card-body py-3">
-                                    <div class="mb-2">
-                                        <i class="fas fa-chalkboard-teacher fa-2x text-secondary"></i>
-                                    </div>
-                                    <h6 class="card-subtitle mb-2 text-muted small">Profesores</h6>
-                                    <h4 class="card-title mb-0 text-dark fw-bold">{{ resumen.profesores_count }}</h4>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-lg-2 col-md-4 col-sm-6">
-                            <div class="card text-center shadow-sm" style="border-radius: 15px; border-left: 5px solid {% if resumen.completitud == 100 %}#28a745{% elif resumen.completitud >= 50 %}#ffc107{% else %}#dc3545{% endif %};">
-                                <div class="card-body py-3">
-                                    <div class="mb-2">
-                                        <i class="fas fa-chart-pie fa-2x text-{{ resumen.estado.clase }}"></i>
-                                    </div>
-                                    <h6 class="card-subtitle mb-2 text-muted small">Completitud</h6>
-                                    <h4 class="card-title mb-0 text-dark fw-bold">{{ resumen.completitud }}%</h4>
-                                </div>
+                                <span class="fw-bold text-{{ resumen.estado.clase }}">{{ resumen.completitud }}%</span>
                             </div>
                         </div>
                     </div>
+                </div>
+            </div>
 
-                    <!-- Segunda fila de información adicional -->
-                    <div class="row mb-4 g-3">
-                        <div class="col-lg-12">
-                            <div class="card shadow-sm" style="border-radius: 15px; border-top: 4px solid #007bff;">
-                                <div class="card-body py-3">
-                                    <div class="row text-center">
-                                        <div class="col-md-12">
-                                            <i class="fas fa-book text-primary fa-2x mb-2"></i>
-                                            <h6 class="text-muted small mb-1">Total Materias</h6>
-                                            <h3 class="text-dark fw-bold mb-0">{{ grupo.get_materias_count() }}</h3>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+            <!-- Contenido Principal -->
+            <div class="card border-0 shadow-sm">
+                <div class="card-body p-0">
                     
-                    <!-- Lista de Materias con Profesores -->
                     {% if grupo.materias %}
-                        <h4 class="mb-3">
-                            <i class="fas fa-list"></i> Materias y Profesores Asignados
-                        </h4>
-                        
                         {% set materias_info = grupo.get_materias_con_profesores() %}
                         
                         <!-- Alertas de estado -->
                         {% set materias_sin_profesor = grupo.get_materias_sin_profesor() %}
                         {% if materias_sin_profesor %}
-                        <div class="alert alert-warning" role="alert">
-                            <i class="fas fa-exclamation-triangle"></i>
-                            <strong>Atención:</strong> {{ materias_sin_profesor|length }} materias no tienen profesor asignado.
+                        <div class="alert alert-warning m-4 d-flex align-items-center" role="alert">
+                            <i class="fas fa-exclamation-triangle fa-2x me-3"></i>
+                            <div>
+                                <strong>Atención:</strong> Hay {{ materias_sin_profesor|length }} materias sin profesor asignado.
+                            </div>
                         </div>
                         {% endif %}
                         
                         <div class="table-responsive">
-                            <table class="table table-bordered table-striped table-hover">
-                                <thead class="thead-dark">
+                            <table class="table table-hover align-middle mb-0">
+                                <thead class="bg-light">
                                     <tr>
-                                        <th>Código</th>
-                                        <th>Nombre</th>
-                                        <th>Créditos</th>
-                                        <th>Horas Semanales</th>
+                                        <th class="ps-4">Código / Nombre</th>
+                                        <th class="text-center">Créditos</th>
+                                        <th class="text-center">Horas/Sem</th>
                                         <th>Profesores Asignados</th>
-                                        <th>Estado</th>
+                                        <th class="text-center pe-4">Estado</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {% for info in materias_info %}
                                     {% set materia = info.materia %}
-                                    <tr class="{% if not info.tiene_profesor %}table-warning{% endif %}">
-                                        <td><strong class="text-dark">{{ materia.codigo }}</strong></td>
-                                        <td><strong class="text-dark">{{ materia.nombre }}</strong></td>
-                                        <td class="text-center">
-                                            <span class="badge bg-primary text-white">{{ materia.creditos }}</span>
+                                    <tr>
+                                        <td class="ps-4 py-3">
+                                            <div class="d-flex align-items-center">
+                                                <div class="avatar-sm bg-light rounded text-center me-3 p-2 fw-bold text-primary" style="width: 50px;">
+                                                    {{ materia.codigo|replace(grupo.carrera.codigo, '')|replace('-', '') }}
+                                                </div>
+                                                <div>
+                                                    <h6 class="mb-0 fw-bold">{{ materia.nombre }}</h6>
+                                                    <small class="text-muted">{{ materia.codigo }}</small>
+                                                </div>
+                                            </div>
                                         </td>
                                         <td class="text-center">
-                                            <strong class="text-dark">{{ materia.get_horas_totales() }}h</strong>
+                                            <span class="badge bg-light text-dark border">{{ materia.creditos }} créd.</span>
+                                        </td>
+                                        <td class="text-center">
+                                            <span class="fw-semibold text-dark">{{ materia.get_horas_totales() }}h</span>
                                         </td>
                                         <td>
                                             {% if info.profesores %}
+                                                <div class="d-flex flex-column gap-1">
                                                 {% for profesor in info.profesores %}
-                                                <div class="mb-1">
-                                                    <span class="badge bg-success text-white">
-                                                        <i class="fas fa-user"></i>
-                                                        {{ profesor.get_nombre_completo() }}
-                                                    </span>
-                                                    <small class="text-dark">
-                                                        ({{ profesor.tipo_profesor|replace('_', ' ')|title }})
-                                                    </small>
-                                                </div>
+                                                    <div class="d-flex align-items-center">
+                                                        <i class="fas fa-user-circle text-muted me-2"></i>
+                                                        <span class="text-dark small">{{ profesor.get_nombre_completo() }}</span>
+                                                    </div>
                                                 {% endfor %}
+                                                </div>
                                             {% else %}
-                                                <span class="text-danger fw-bold">
-                                                    <i class="fas fa-times-circle"></i>
-                                                    Sin profesor asignado
-                                                </span>
+                                                <span class="text-muted small fst-italic">Sin asignar</span>
                                             {% endif %}
                                         </td>
-                                        <td class="text-center">
+                                        <td class="text-center pe-4">
                                             {% if info.tiene_profesor %}
-                                                <span class="badge bg-success text-white">
-                                                    <i class="fas fa-check"></i>
-                                                    Completo
+                                                <span class="badge rounded-pill bg-success-subtle text-success border border-success-subtle px-3">
+                                                    <i class="fas fa-check me-1"></i> Completo
                                                 </span>
                                             {% else %}
-                                                <span class="badge bg-warning text-dark">
-                                                    <i class="fas fa-exclamation-triangle"></i>
-                                                    Pendiente
+                                                <span class="badge rounded-pill bg-warning-subtle text-warning border border-warning-subtle px-3">
+                                                    <i class="fas fa-clock me-1"></i> Pendiente
                                                 </span>
                                             {% endif %}
                                         </td>
                                     </tr>
                                     {% endfor %}
                                 </tbody>
-                                <tfoot>
-                                    <tr class="table-info">
-                                        <th colspan="2"><strong class="text-dark">TOTALES</strong></th>
-                                        <th class="text-center">
-                                            <strong class="text-dark">{{ grupo.materias|sum(attribute='creditos') }}</strong>
-                                        </th>
-                                        <th class="text-center">
-                                            <strong class="text-dark">{{ grupo.materias|sum(attribute='horas_semanales') }}h</strong>
-                                        </th>
-                                        <th>
-                                            <strong class="text-dark">{{ resumen.profesores_count }} profesores únicos</strong>
-                                        </th>
-                                        <th class="text-center">
-                                            <strong class="text-{{ resumen.estado.clase }}">
-                                                {{ resumen.completitud }}% completo
-                                            </strong>
-                                        </th>
+                                <tfoot class="bg-light border-top">
+                                    <tr>
+                                        <th class="ps-4">Total</th>
+                                        <td class="text-center fw-bold">{{ grupo.materias|sum(attribute='creditos') }}</td>
+                                        <td class="text-center fw-bold">{{ grupo.materias|sum(attribute='horas_semanales') }}h</td>
+                                        <td><small class="text-muted">{{ resumen.profesores_count }} prof. únicos</small></td>
+                                        <td></td>
                                     </tr>
                                 </tfoot>
                             </table>
                         </div>
                         
-                        <!-- Resumen de Profesores -->
-                        {% set profesores_grupo = grupo.get_profesores_asignados() %}
-                        {% if profesores_grupo %}
-                        <div class="mt-4">
-                            <h5><i class="fas fa-chalkboard-teacher"></i> Profesores que Imparten en este Grupo</h5>
-                            <div class="row">
-                                {% for profesor in profesores_grupo %}
-                                <div class="col-md-6 col-lg-4 mb-3">
-                                    <div class="card">
-                                        <div class="card-body text-center">
-                                            {% if profesor.imagen_perfil %}
-                                            <img src="{{ url_for('static', filename='uploads/perfiles/' + profesor.imagen_perfil) }}" 
-                                                 class="rounded-circle mb-2" style="width: 50px; height: 50px; object-fit: cover;" 
-                                                 alt="Foto de {{ profesor.get_nombre_completo() }}">
-                                            {% else %}
-                                            <div class="bg-secondary rounded-circle mx-auto mb-2 d-flex align-items-center justify-content-center" 
-                                                 style="width: 50px; height: 50px;">
-                                                <i class="fas fa-user text-white"></i>
-                                            </div>
-                                            {% endif %}
-                                            <h6 class="card-title mb-1">{{ profesor.get_nombre_completo() }}</h6>
-                                            <small class="text-muted">{{ profesor.tipo_profesor|replace('_', ' ')|title }}</small>
-                                            <div class="mt-2">
-                                                <span class="badge badge-info">
-                                                    {{ profesor.materias|selectattr('id', 'in', grupo.materias|map(attribute='id')|list)|list|length }} materias
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                {% endfor %}
-                            </div>
-                        </div>
-                        {% endif %}
                     {% else %}
-                        <div class="alert alert-warning">
-                            <i class="fas fa-exclamation-triangle"></i> 
-                            Este grupo no tiene materias asignadas aún. 
-                            <a href="{{ url_for('gestionar_materias_grupo', id=grupo.id) }}">Asignar materias ahora</a>
+                        <div class="text-center py-5">
+                            <div class="mb-3">
+                                <i class="fas fa-book-open fa-3x text-muted opacity-50"></i>
+                            </div>
+                            <h5 class="text-muted">No hay materias asignadas a este grupo</h5>
+                            <a href="{{ url_for('gestionar_materias_grupo', id=grupo.id) }}" class="btn btn-primary mt-2">
+                                Asignar Materias
+                            </a>
                         </div>
                     {% endif %}
                 </div>
             </div>
+
+            <!-- Grid de Profesores (Opcional, más visual) -->
+            {% set profesores_grupo = grupo.get_profesores_asignados() %}
+            {% if profesores_grupo %}
+            <div class="mt-4">
+                <h5 class="mb-3 text-muted">
+                    <i class="fas fa-chalkboard-teacher me-2"></i>Equipo Docente
+                </h5>
+                <div class="row g-3">
+                    {% for profesor in profesores_grupo %}
+                    <div class="col-md-6 col-lg-3">
+                        <div class="card border-0 shadow-sm h-100 layer-hover">
+                            <div class="card-body d-flex align-items-center">
+                                <div class="me-3">
+                                    {% if profesor.imagen_perfil %}
+                                    <img src="{{ url_for('static', filename='uploads/perfiles/' + profesor.imagen_perfil) }}" 
+                                         class="rounded-circle" style="width: 40px; height: 40px; object-fit: cover;" alt="">
+                                    {% else %}
+                                    <div class="bg-light rounded-circle d-flex align-items-center justify-content-center text-primary fw-bold" 
+                                         style="width: 40px; height: 40px;">
+                                        {{ profesor.nombre[0] }}{{ profesor.apellido[0] }}
+                                    </div>
+                                    {% endif %}
+                                </div>
+                                <div>
+                                    <h6 class="mb-0 small fw-bold text-dark">{{ profesor.get_nombre_completo() }}</h6>
+                                    <small class="text-muted" style="font-size: 0.75rem;">{{ profesor.tipo_profesor|replace('_', ' ')|title }}</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
         </div>
     </div>
 </div>
+
+<style>
+    .bg-success-subtle { background-color: #d1e7dd !important; }
+    .text-success { color: #146c43 !important; }
+    .border-success-subtle { border-color: #a3cfbb !important; }
+    
+    .bg-warning-subtle { background-color: #fff3cd !important; }
+    .text-warning { color: #664d03 !important; }
+    .border-warning-subtle { border-color: #ffecb5 !important; }
+
+    .layer-hover:hover { transform: translateY(-2px); transition: all 0.2s; }
+</style>
 {% endblock %}

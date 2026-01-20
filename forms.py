@@ -513,14 +513,7 @@ class EditarHorarioAcademicoForm(FlaskForm):
         ('sabado', 'Sábado')
     ], validators=[DataRequired()])
     
-    grupo = SelectField('Grupo', choices=[
-        ('A', 'Grupo A'),
-        ('B', 'Grupo B'),
-        ('C', 'Grupo C'),
-        ('D', 'Grupo D'),
-        ('E', 'Grupo E'),
-        ('F', 'Grupo F')
-    ], validators=[DataRequired()], default='A')
+    grupo = StringField('Grupo', validators=[DataRequired(), Length(max=10)])
     
     submit = SubmitField('Guardar Cambios')
 
@@ -940,6 +933,11 @@ class EditarUsuarioForm(FlaskForm):
         elif 'profesor_asignatura' in roles:
             return 'profesor_asignatura'
         return roles[0] if roles else ''
+    
+    def get_final_rol(self):
+        """Alias para get_primary_rol - obtener el rol final para el campo legacy"""
+        return self.get_primary_rol()
+
     
     def is_profesor(self):
         """Verificar si alguno de los roles seleccionados es de profesor"""

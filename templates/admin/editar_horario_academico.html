@@ -111,7 +111,7 @@
                             <!-- Grupo -->
                             <div class="col-md-6">
                                 <label for="grupo" class="form-label">Grupo <span class="text-danger">*</span></label>
-                                {{ form.grupo(class="form-select") }}
+                                {{ form.grupo(class="form-control") }}
                                 {% if form.grupo.errors %}
                                     <div class="text-danger small">
                                         {% for error in form.grupo.errors %}
@@ -119,24 +119,12 @@
                                         {% endfor %}
                                     </div>
                                 {% endif %}
-                                                                <div class="form-text">Permite tener múltiples grupos de la misma materia</div>
+                                                                <div class="form-text">Escriba el código del grupo (Ej: 1SC1, 7MSC1)</div>
                             </div>
                         </div>
                             </div>
 
-                            <!-- Aula -->
-                            <div class="col-md-6">
-                                <label for="aula" class="form-label">Aula</label>
-                                {{ form.aula(class="form-control") }}
-                                {% if form.aula.errors %}
-                                    <div class="text-danger small">
-                                        {% for error in form.aula.errors %}
-                                            {{ error }}
-                                        {% endfor %}
-                                    </div>
-                                {% endif %}
-                                <div class="form-text">Ejemplo: A101, Lab1, Auditorio</div>
-                            </div>
+
 
                             <!-- Información del período académico -->
                             <div class="col-md-6">

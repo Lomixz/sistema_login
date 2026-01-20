@@ -37,8 +37,8 @@
                 <p><strong>Nombre:</strong> {{ current_user.nombre }} {{ current_user.apellido }}</p>
                 <p><strong>Email:</strong> {{ current_user.email }}</p>
                 <p><strong>Carrera:</strong> 
-                    {% if current_user.carrera %}
-                        {{ current_user.carrera.nombre }}
+                    {% if current_user.carreras|length > 0 %}
+                        {{ current_user.carreras|map(attribute='nombre')|join(', ') }}
                     {% else %}
                         <span class="text-muted">Sin asignar</span>
                     {% endif %}

@@ -17,9 +17,9 @@
                     Volver al Dashboard
                 </a>
                 {% else %}
-                <a href="{{ url_for('profesor_panel') }}" class="btn btn-secondary">
-                    <i class="fas fa-arrow-left me-1"></i>
-                    Volver al Panel
+                <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">
+                    <i class="fas fa-home me-1"></i>
+                    Volver al Dashboard
                 </a>
                 {% endif %}
             </div>
@@ -193,11 +193,10 @@
                                                 <table class="table table-sm table-bordered table-striped mb-0">
                                                     <thead class="table-dark">
                                                         <tr>
-                                                            <th width="15%">Día</th>
-                                                            <th width="20%">Horario</th>
+                                                            <th width="20%">Día</th>
+                                                            <th width="25%">Horario</th>
                                                             <th width="25%">Grupo</th>
-                                                            <th width="20%">Carrera del Grupo</th>
-                                                            <th width="20%">Aula</th>
+                                                            <th width="30%">Turno</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody>
@@ -213,28 +212,13 @@
                                                             </td>
                                                             <td>
                                                                 {% if horario.grupo %}
-                                                                    <span class="badge bg-info">{{ horario.grupo.codigo }}</span>
-                                                                    <small class="text-muted ms-1">
-                                                                        ({{ horario.grupo.get_turno_display() }})
-                                                                    </small>
+                                                                    <span class="badge bg-dark">{{ horario.grupo }}</span>
                                                                 {% else %}
-                                                                    <span class="text-muted">Sin grupo asignado</span>
+                                                                    <span class="text-muted">Sin grupo</span>
                                                                 {% endif %}
                                                             </td>
                                                             <td>
-                                                                {% if horario.grupo and horario.grupo.carrera %}
-                                                                    <small>{{ horario.grupo.carrera.nombre }}</small>
-                                                                {% else %}
-                                                                    <span class="text-muted">-</span>
-                                                                {% endif %}
-                                                            </td>
-                                                            <td>
-                                                                {% if horario.aula %}
-                                                                    <i class="fas fa-door-open text-primary me-1"></i>
-                                                                    {{ horario.aula }}
-                                                                {% else %}
-                                                                    <span class="text-muted">Por asignar</span>
-                                                                {% endif %}
+                                                                <span class="badge bg-warning text-dark">{{ horario.get_turno_display() }}</span>
                                                             </td>
                                                         </tr>
                                                         {% endfor %}

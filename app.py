@@ -301,6 +301,16 @@ def procesar_horarios(agrupar_por='profesor', carrera_id=None, incluir_ids=False
             if dia_correcto:
                 datos_organizados[clave_agrupacion][dia_correcto].append(info_clase_html)
 
+    # 6. Ordenamos el diccionario final si es por grupo para una mejor presentación
+    if agrupar_por == 'grupo':
+        # Importamos re aquí si no está arriba o usamos la función auxiliar si tenemos
+        import re
+        def natural_keys(text):
+            return [int(c) if c.isdigit() else c for c in re.split(r'(\d+)', text)]
+            
+        datos_ordenados = {k: datos_organizados[k] for k in sorted(datos_organizados.keys(), key=natural_keys)}
+        return datos_ordenados
+        
     return datos_organizados
 
 
@@ -995,11 +1005,25 @@ def asignacion_masiva_materias_jefe():
     for profesor in profesores:
         asignaciones_actuales[profesor.id] = set(m.id for m in profesor.materias)
     
+    # Calcular carga de trabajo de cada profesor
+    cargas_profesores = {}
+    for profesor in profesores:
+        cargas_profesores[profesor.id] = calcular_carga_profesor(profesor)
+        
+    # Obtener filtro de disponibilidad
+    solo_disponibles = request.args.get('solo_disponibles', type=int, default=0)
+    
+    # Si se solicita filtrar solo profesores disponibles, filtrar
+    if solo_disponibles:
+        profesores = [p for p in profesores if cargas_profesores[p.id]['puede_mas']]
+    
     return render_template('jefe/asignacion_masiva_materias.html',
                          profesores=profesores,
                          materias=materias,
                          asignaciones_actuales=asignaciones_actuales,
+                         cargas_profesores=cargas_profesores,
                          filtro_cuatrimestre=cuatrimestre,
+                         solo_disponibles=solo_disponibles,
                          carrera=current_user.carrera)
 
 # ==========================================
@@ -1112,8 +1136,37 @@ def gestionar_horarios_academicos_jefe():
         return redirect(url_for('dashboard'))
     
     horarios_academicos = current_user.get_horarios_academicos_carrera()
+    
+    # Ordenar horarios: primero por día (Lunes=0, ...), luego por orden de horario
+    dias_order = {
+        'lunes': 0, 'martes': 1, 'miercoles': 2, 'jueves': 3, 'viernes': 4, 'sabado': 5, 'domingo': 6
+    }
+    # Helper para ordenamiento natural (1MSC vs 10MSC)
+    import re
+    def natural_sort_key(s):
+        """Ordena cadenas que contienen números de forma natural (1, 2, 10)"""
+        if not s:
+            return []
+        return [int(text) if text.isdigit() else text.lower()
+                for text in re.split(r'(\d+)', s)]
+
+    # Ordenar horarios: 
+    # 1. Por día (Lunes, Martes...)
+    # 2. Por grupo (naturalmente: 1MSC, 10MSC...)
+    # 3. Por hora de inicio (7:00, 8:00...)
+    horarios_academicos.sort(key=lambda x: (
+        dias_order.get(x.dia_semana, 100), 
+        natural_sort_key(x.grupo),
+        x.horario.hora_inicio
+    ))
+
+    # Obtener grupos únicos y ordenarlos naturalmente
+    grupos_unicos = list(set(h.grupo for h in horarios_academicos))
+    grupos_unicos.sort(key=natural_sort_key)
+
     return render_template('jefe/horarios_academicos.html', 
                          horarios_academicos=horarios_academicos, 
+                         grupos_unicos=grupos_unicos,
                          carrera=current_user.carrera)
 
 @app.route('/jefe-carrera/horario-academico/<int:id>/editar', methods=['GET', 'POST'])
@@ -1143,7 +1196,6 @@ def editar_horario_academico_jefe(id):
     form = EditarHorarioAcademicoForm()
     if form.validate_on_submit():
         horario_academico.horario_id = form.horario_id.data
-        horario_academico.aula = form.aula.data
         horario_academico.dia_semana = form.dia_semana.data
         horario_academico.grupo = form.grupo.data
         
@@ -1153,7 +1205,6 @@ def editar_horario_academico_jefe(id):
     
     # Pre-llenar el formulario
     form.horario_id.data = horario_academico.horario_id
-    form.aula.data = horario_academico.aula
     form.dia_semana.data = horario_academico.dia_semana
     form.grupo.data = horario_academico.grupo
     
@@ -1324,8 +1375,16 @@ def gestionar_grupos():
         flash('No tienes permisos para acceder a esta página.', 'error')
         return redirect(url_for('dashboard'))
     
-    # Si es jefe de carrera, solo mostrar grupos de su carrera
-    if current_user.is_jefe_carrera():
+    # Si es admin, mostrar TODOS los grupos (incluso si también es jefe de carrera)
+    if current_user.is_admin():
+        grupos = Grupo.query.join(Carrera).order_by(
+            Carrera.nombre, Grupo.cuatrimestre, Grupo.numero_grupo
+        ).all()
+        
+        # Obtener todas las carreras activas
+        carreras = Carrera.query.filter_by(activa=True).order_by(Carrera.nombre).all()
+    # Si es solo jefe de carrera (sin ser admin), mostrar grupos de su carrera
+    elif current_user.is_jefe_carrera():
         if not current_user.carreras:
             flash('No tienes carreras asignadas. Contacta al administrador.', 'warning')
             return redirect(url_for('dashboard'))
@@ -1336,14 +1395,7 @@ def gestionar_grupos():
         
         # Obtener carreras únicas (solo la del jefe)
         carreras = Carrera.query.filter_by(id=current_user.primera_carrera_id).all()
-    else:
-        # Admin ve todos los grupos
-        grupos = Grupo.query.join(Carrera).order_by(
-            Carrera.nombre, Grupo.cuatrimestre, Grupo.numero_grupo
-        ).all()
-        
-        # Obtener todas las carreras activas
-        carreras = Carrera.query.filter_by(activa=True).order_by(Carrera.nombre).all()
+
     
     return render_template('admin/grupos.html', grupos=grupos, carreras=carreras)
 
@@ -5343,9 +5395,53 @@ def admin_horario_profesores():
 @login_required
 def admin_horario_grupos():
     if not current_user.is_admin(): abort(403)
-
-    horarios_data = procesar_horarios(agrupar_por='grupo', incluir_ids=True)
-    return render_template('admin/admin_horario_grupos.html', horarios_data=horarios_data)
+    
+    # Obtener filtros de la query string
+    carrera_id = request.args.get('carrera_id', type=int)
+    cuatrimestre = request.args.get('cuatrimestre', type=int)
+    
+    horarios_data = procesar_horarios(agrupar_por='grupo', carrera_id=carrera_id, incluir_ids=True)
+    
+    # Ordenar los grupos por cuatrimestre (ascendente)
+    # El código del grupo tiene formato: [cuatrimestre][turno][carrera][numero]
+    # Ejemplo: 1MSC1 = cuatrimestre 1, 7VSC2 = cuatrimestre 7
+    def extraer_cuatrimestre(grupo_codigo):
+        """Extraer el cuatrimestre del código del grupo"""
+        try:
+            # Obtener dígitos iniciales
+            num_str = ''
+            for char in grupo_codigo:
+                if char.isdigit():
+                    num_str += char
+                else:
+                    break
+            return int(num_str) if num_str else 99
+        except:
+            return 99
+    
+    # Filtrar por cuatrimestre si se especifica
+    if cuatrimestre is not None:
+        horarios_data = {
+            k: v for k, v in horarios_data.items() 
+            if extraer_cuatrimestre(k) == cuatrimestre
+        }
+    
+    # Ordenar por cuatrimestre ascendente, luego por código
+    horarios_ordenados = dict(sorted(
+        horarios_data.items(), 
+        key=lambda x: (extraer_cuatrimestre(x[0]), x[0])
+    ))
+    
+    # Obtener carreras y cuatrimestres para filtros
+    carreras = Carrera.query.filter_by(activa=True).order_by(Carrera.nombre).all()
+    cuatrimestres = list(range(0, 11))  # 0 a 10
+    
+    return render_template('admin/admin_horario_grupos.html', 
+                         horarios_data=horarios_ordenados,
+                         carreras=carreras,
+                         cuatrimestres=cuatrimestres,
+                         filtro_carrera=carrera_id,
+                         filtro_cuatrimestre=cuatrimestre)
 
 # ==========================================
 # EXPORTAR HORARIOS POR PROFESOR (WORD EXCEL)
@@ -5663,6 +5759,65 @@ def jefe_ver_horarios_grupos():
 
     horarios_data = procesar_horarios(agrupar_por='grupo', carrera_id=id_carrera)
     return render_template('jefe/jefe_horario_grupos.html', horarios_data=horarios_data)
+
+
+@app.route('/jefe/horarios/grupos/exportar-individual/<nombre_grupo>')
+@login_required
+def exportar_jefe_horario_grupo_excel(nombre_grupo):
+    if not current_user.is_jefe_carrera():
+        abort(403)
+        
+    id_carrera = current_user.primera_carrera_id
+    
+    # 1. Recalculamos horarios pero filtrando por la carrera del jefe
+    todos_los_horarios = procesar_horarios(agrupar_por='grupo', carrera_id=id_carrera)
+    
+    # 2. Buscamos el horario
+    horario_especifico = todos_los_horarios.get(nombre_grupo)
+    
+    if not horario_especifico:
+        flash(f'El grupo {nombre_grupo} no existe o no pertenece a tu carrera.', 'error')
+        return redirect(url_for('jefe_ver_horarios_grupos'))
+
+    # 3. Preparamos datos para DataFrame
+    datos_para_excel = {}
+    dias_semana = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes']
+    
+    for dia in dias_semana:
+        clases = horario_especifico[dia]
+        clases_limpias = []
+        for clase in clases:
+            # Limpiar HTML básico
+            text_content = re.sub('<[^<]+?>', '', clase)
+            text_content = text_content.replace('&nbsp;', ' ').strip()
+            if text_content:
+                clases_limpias.append(text_content)
+        
+        datos_para_excel[dia] = "\n\n".join(clases_limpias)
+
+    # 4. Creamos el DataFrame y el archivo Excel
+    df = pd.DataFrame([datos_para_excel], index=[nombre_grupo])
+    
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, sheet_name=f'Horario {nombre_grupo}')
+        worksheet = writer.sheets[f'Horario {nombre_grupo}']
+        worksheet.column_dimensions['A'].width = 30
+        for col_letter in ['B', 'C', 'D', 'E', 'F']:
+            worksheet.column_dimensions[col_letter].width = 40
+            
+        for row in worksheet.iter_rows():
+            for cell in row:
+                cell.alignment = Alignment(wrap_text=True, vertical='top')
+
+    output.seek(0)
+
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name=f'horario_{nombre_grupo.replace(" ", "_")}.xlsx',
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
 
 
 # --- Rutas de Exportación para Jefes ---
